@@ -31,15 +31,14 @@ export class AiService {
     skippedWords: string[];
   }> {
     try {
-
       const category = await this.categoryService.findByCategoryIdAndUserId(
         categoryId,
         userId,
       );
 
       if (!category) {
-        throw new NotFoundException('
-          Категорія не знайдена або не належить користувачу.'
+        throw new NotFoundException(
+          'Категорія не знайдена або не належить користувачу.',
         );
       }
 
