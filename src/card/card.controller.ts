@@ -25,7 +25,7 @@ export class CardController {
   constructor(
     private readonly cardService: CardService,
     private readonly reviewService: ReviewService,
-  ) { }
+  ) {}
 
   @Post()
   @UseGuards(JwtAuthGuard)

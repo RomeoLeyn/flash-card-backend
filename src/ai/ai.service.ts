@@ -14,7 +14,7 @@ export class AiService {
     private readonly configService: ConfigService,
     private readonly cardService: CardService,
     private readonly categoryService: CategoryService,
-  ) { }
+  ) {}
 
   onModuleInit() {
     const apiKey = this.configService.get<string>('GEMINI_API_KEY');

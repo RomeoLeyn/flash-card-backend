@@ -12,7 +12,7 @@ export class CardService {
   constructor(
     @InjectRepository(Card) private readonly cardRepository: Repository<Card>,
     private readonly categoryService: CategoryService,
-  ) { }
+  ) {}
 
   async create(createCardDto: CreateCardDto, userId: string): Promise<Card> {
     const category = await this.categoryService.findByCategoryIdAndUserId(

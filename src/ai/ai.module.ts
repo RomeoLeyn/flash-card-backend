@@ -11,4 +11,4 @@ import { CategoryModule } from 'src/category/category.module';
   controllers: [AiController],
   providers: [AiService],
 })
-export class AiModule { }
+export class AiModule {}

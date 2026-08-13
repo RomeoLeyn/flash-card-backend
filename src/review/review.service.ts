@@ -29,7 +29,7 @@ export class ReviewService {
     private readonly reviewLogRepo: Repository<ReviewLog>,
     @InjectRepository(Card)
     private readonly cardRepo: Repository<Card>,
-  ) { }
+  ) {}
 
   calculateSrsUpdate(
     card: Pick<Card, 'interval' | 'repetitions' | 'easeFactor'>,

@@ -17,7 +17,7 @@ import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 
 @Controller('categories')
 export class CategoryController {
-  constructor(private readonly categoryService: CategoryService) {}
+  constructor(private readonly categoryService: CategoryService) { }
 
   @Post()
   @UseGuards(JwtAuthGuard)
@@ -44,9 +44,10 @@ export class CategoryController {
   @UseGuards(JwtAuthGuard)
   update(
     @Param('id') id: string,
+    @CurrentUser() user: User,
     @Body() updateCategoryDto: UpdateCategoryDto,
   ) {
-    return this.categoryService.update(+id, updateCategoryDto);
+    return this.categoryService.update(id, user.id, updateCategoryDto);
   }
 
   @Delete(':id')

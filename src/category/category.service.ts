@@ -73,8 +73,19 @@ export class CategoryService {
     return category;
   }
 
-  update(id: number, updateCategoryDto: UpdateCategoryDto) {
-    return `This action updates a #${id} category`;
+  async update(
+    id: string,
+    userId: string,
+    updateCategoryDto: UpdateCategoryDto,
+  ) {
+    const category = await this.findByCategoryIdAndUserId(id, userId);
+
+    if (!category) {
+      throw new NotFoundException('Category not found');
+    }
+
+    await this.categoryRepository.update(id, updateCategoryDto);
+    return this.categoryRepository.findOne({ where: { id } });
   }
 
   remove(id: number) {
