@@ -17,7 +17,7 @@ import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 
 @Controller('categories')
 export class CategoryController {
-  constructor(private readonly categoryService: CategoryService) { }
+  constructor(private readonly categoryService: CategoryService) {}
 
   @Post()
   @UseGuards(JwtAuthGuard)
