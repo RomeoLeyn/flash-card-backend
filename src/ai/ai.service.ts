@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { CardService } from 'src/card/card.service';
 import type { Card } from 'src/card/entities/card.entity';
 import { CategoryService } from 'src/category/category.service';
+import { buildSystemInstruction } from 'src/common/constants/promts';
 import { FlashcardData } from 'src/common/interfaces/flash-card-data.interface';
 
 @Injectable()
@@ -46,22 +47,10 @@ export class AiService {
         model: 'gemini-3.5-flash',
 
         config: {
-          systemInstruction: `
-  Ти — висококваліфікований лінгвіст, лексикограф та носій англійської мови з досвідом створення контенту для додатків на кшталт Duolingo та Anki.
-  
-  Твоє завдання: генерувати високоякісні, автентичні та корисні слова для флеш-карток відповідно до вказаної користувачем категорії.
-  
-  КРИТИЧНІ ПРАВИЛА:
-  1. Абсолютна заборона на повторення: Тобі буде надано список слів, які користувач уже знає. Категорично заборонено повертати слова, які є у цьому списку, або їхні прямі однокореневі форми.
-  2. Рівень лексики: Підбирай різноманітні слова — від базових предметів до більш просунутих концептів, що відповідають реальній живій мові (уникай застарілих або занадто специфічних термінів, якщо цього не вимагає категорія).
-  3. Мова слова (поле "word") — ${category.sourceLanguage}. Мова перекладу (поле "translation") — ${category.targetLanguage}. Переклад повинен бути точним, природним та загальноприйнятим.
-  4. Приклад використання (поле "exampleSentence"):
-     - Пиши речення виключно англійською мовою.
-     - Воно має бути простим для розуміння, але чітко розкривати контекст і значення цільового слова.
-     - Довжина речення: від 5 до 12 слів.
-     - Цільове слово у реченні має бути у тій самій формі, що й у полі "word" (або у природній граматичній формі для цього контексту, наприклад, у множині чи минулому часі).
-  5. Формат відповіді: Завжди повертай результат строго за валідною JSON-схемою, яку надав розробник. Ніякого додаткового тексту, привітань чи пояснень поза структурою JSON. І строго використовуй sourceLanguage та targetLanguage як "en" та "uk" відповідно.
-`,
+          systemInstruction: buildSystemInstruction({
+            sourceLanguage: category.sourceLanguage,
+            targetLanguage: category.targetLanguage,
+          }),
           temperature: 0.7,
           responseMimeType: 'application/json',
           responseSchema: {

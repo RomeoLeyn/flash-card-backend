@@ -1,14 +1,12 @@
-import { Type } from 'class-transformer';
-import { IsOptional, IsUUID, IsInt, Min, Max } from 'class-validator';
+import { IsOptional, IsUUID, IsString } from 'class-validator';
 
 export class GetDueCardsDto {
   @IsOptional()
   @IsUUID()
   categoryId?: string;
 
+  // For future you must change this for number
   @IsOptional()
-  @IsInt()
-  @Min(1)
-  @Max(200)
+  @IsString()
   limit?: number = 20;
 }
