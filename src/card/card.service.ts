@@ -114,6 +114,7 @@ export class CardService {
   ): Promise<Card[]> {
     return this.cardRepository.find({
       where: { category: { id: categoryId }, user: { id: userId } },
+      order: { createdAt: 'DESC' },
     });
   }
 

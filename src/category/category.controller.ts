@@ -52,7 +52,7 @@ export class CategoryController {
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard)
-  remove(@Param('id') id: string) {
-    return this.categoryService.remove(+id);
+  remove(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.categoryService.remove(id, user.id);
   }
 }

@@ -29,7 +29,7 @@ export class Category {
   @ManyToOne(() => User, (user) => user.categories, { onDelete: 'CASCADE' })
   user!: User;
 
-  @OneToMany(() => Card, (card) => card.category)
+  @OneToMany(() => Card, (card) => card.category, { onDelete: 'CASCADE' })
   cards!: Card[];
 
   @CreateDateColumn()
