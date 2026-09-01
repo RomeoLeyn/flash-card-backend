@@ -19,6 +19,7 @@ import { ReviewCardDto } from './dto/review-card.dto';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { User } from 'src/user/entities/user.entity';
+import { CardSortBy, SortOrder } from 'src/common/enums/sort-order.enum';
 
 @Controller('cards')
 export class CardController {
@@ -41,8 +42,15 @@ export class CardController {
   findAll(
     @CurrentUser('id') userId: string,
     @Param('categoryId') categoryId: string,
+    @Query('sortBy') sortBy: CardSortBy = CardSortBy.WORD,
+    @Query('sortOrder') sortOrder: SortOrder = SortOrder.ASC,
   ) {
-    return this.cardService.findAllByCategoryId(categoryId, userId);
+    return this.cardService.findAllByCategoryId(
+      categoryId,
+      userId,
+      sortBy,
+      sortOrder,
+    );
   }
 
   @Get('/card/:id')
@@ -72,6 +80,8 @@ export class CardController {
   async getDueCards(@Query() query: GetDueCardsDto, @CurrentUser() user: User) {
     return this.reviewService.getDueCards(user.id, {
       categoryId: query.categoryId,
+      sortBy: query.sortBy,
+      sortOrder: query.sortOrder,
     });
   }
 

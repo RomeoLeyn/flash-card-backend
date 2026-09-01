@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { ReviewLog } from './entities/review.entity';
 import { Card } from 'src/card/entities/card.entity';
 import { ReviewQuality } from 'src/common/enums/rewiev-quality.enum';
+import { CardSortBy, SortOrder } from 'src/common/enums/sort-order.enum';
 
 export interface SrsUpdateResult {
   interval: number;
@@ -116,21 +117,36 @@ export class ReviewService {
 
   async getDueCards(
     userId: string,
-    options: { categoryId?: string },
+    options: {
+      categoryId?: string;
+      sortBy?: CardSortBy;
+      sortOrder?: SortOrder;
+    },
   ): Promise<Card[]> {
+    const sortBy = options.sortBy || CardSortBy.NEXT_REVIEW_DATE;
+    const sortOrder = options.sortOrder || SortOrder.ASC;
+
     const qb = this.cardRepo
       .createQueryBuilder('card')
       .leftJoinAndSelect('card.category', 'category')
       .where('card.userId = :userId', { userId })
-      .andWhere('(card.nextReviewDate IS NULL OR card.nextReviewDate <= NOW())')
-      .orderBy('card.nextReviewDate', 'ASC', 'NULLS FIRST')
-      .take();
+      .andWhere(
+        '(card.nextReviewDate IS NULL OR card.nextReviewDate <= NOW())',
+      );
 
     if (options.categoryId) {
       qb.andWhere('card.categoryId = :categoryId', {
         categoryId: options.categoryId,
       });
     }
+
+    if (sortBy === CardSortBy.LAST_REVIEWED_AT) {
+      qb.orderBy(`card.${sortBy}`, sortOrder, 'NULLS LAST');
+    } else {
+      qb.orderBy(`card.${sortBy}`, sortOrder, 'NULLS FIRST');
+    }
+
+    qb.take();
 
     return qb.getMany();
   }

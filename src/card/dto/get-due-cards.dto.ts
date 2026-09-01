@@ -1,12 +1,20 @@
-import { IsOptional, IsUUID, IsString } from 'class-validator';
+import { IsOptional, IsUUID, IsString, IsEnum } from 'class-validator';
+import { CardSortBy, SortOrder } from 'src/common/enums/sort-order.enum';
 
 export class GetDueCardsDto {
   @IsOptional()
   @IsUUID()
   categoryId?: string;
 
-  // For future you must change this for number
   @IsOptional()
   @IsString()
   limit?: number = 20;
+
+  @IsOptional()
+  @IsEnum(CardSortBy)
+  sortBy?: CardSortBy = CardSortBy.WORD;
+
+  @IsOptional()
+  @IsEnum(SortOrder)
+  sortOrder?: SortOrder = SortOrder.ASC;
 }

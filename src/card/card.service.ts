@@ -6,6 +6,7 @@ import { Repository } from 'typeorm';
 import { Card } from './entities/card.entity';
 import { CategoryService } from '../category/category.service';
 import { FlashcardData } from 'src/common/interfaces/flash-card-data.interface';
+import { CardSortBy, SortOrder } from 'src/common/enums/sort-order.enum';
 
 @Injectable()
 export class CardService {
@@ -111,11 +112,24 @@ export class CardService {
   async findAllByCategoryId(
     categoryId: string,
     userId: string,
+    sortBy: CardSortBy = CardSortBy.WORD,
+    sortOrder: SortOrder = SortOrder.ASC,
   ): Promise<Card[]> {
-    return this.cardRepository.find({
-      where: { category: { id: categoryId }, user: { id: userId } },
-      order: { createdAt: 'DESC' },
-    });
+    const qb = this.cardRepository
+      .createQueryBuilder('card')
+      .where('card.categoryId = :categoryId', { categoryId })
+      .andWhere('card.userId = :userId', { userId });
+
+    if (
+      sortBy === CardSortBy.LAST_REVIEWED_AT ||
+      sortBy === CardSortBy.NEXT_REVIEW_DATE
+    ) {
+      qb.orderBy(`card.${sortBy}`, sortOrder, 'NULLS LAST');
+    } else {
+      qb.orderBy(`card.${sortBy}`, sortOrder);
+    }
+
+    return qb.getMany();
   }
 
   async findOne(id: string, userId: string): Promise<Card> {
