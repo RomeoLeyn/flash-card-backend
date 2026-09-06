@@ -30,6 +30,14 @@ export class Card {
   @Column()
   translation!: string;
 
+  @Column({
+    name: 'transcription',
+    type: 'varchar',
+    nullable: true,
+    length: 255,
+  })
+  transcription!: string | null;
+
   @Column({ type: 'text', nullable: true })
   explanation!: string;
 

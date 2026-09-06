@@ -9,7 +9,8 @@ export const dbConfig = async (
     url: configService.get<string>('DATABASE_URL'),
     entities: [__dirname + '/**/*.entity{.ts,.js}'],
     autoLoadEntities: true,
-    synchronize: true,
+    synchronize: false,
+    migrationsRun: true,
     logging: true,
   };
 };

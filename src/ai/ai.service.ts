@@ -62,6 +62,7 @@ export class AiService {
                 sourceLanguage: { type: Type.STRING },
                 targetLanguage: { type: Type.STRING },
                 translation: { type: Type.STRING },
+                transcription: { type: Type.STRING },
                 explanation: { type: Type.STRING },
               },
               required: [
