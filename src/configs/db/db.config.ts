@@ -8,6 +8,7 @@ export const dbConfig = async (
     type: 'postgres',
     url: configService.get<string>('DATABASE_URL'),
     entities: [__dirname + '/**/*.entity{.ts,.js}'],
+    migrations: [__dirname + '/../../migrations/*{.ts,.js}'],
     autoLoadEntities: true,
     synchronize: false,
     migrationsRun: true,
