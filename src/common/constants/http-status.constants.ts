@@ -1,0 +1,1 @@
+export const AI_SERVICE_UNAVAILABLE_STATUS = 503;

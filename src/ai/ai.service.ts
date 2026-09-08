@@ -1,11 +1,35 @@
 import { GoogleGenAI, Type } from '@google/genai';
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  HttpException,
+  HttpStatus,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { CardService } from 'src/card/card.service';
 import type { Card } from 'src/card/entities/card.entity';
 import { CategoryService } from 'src/category/category.service';
+import { AI_SERVICE_UNAVAILABLE_STATUS } from 'src/common/constants/http-status.constants';
+import {
+  AI_SERVICE_ERROR_MESSAGE,
+  AI_SERVICE_UNAVAILABLE_MESSAGE,
+} from 'src/common/constants/ai-messages.constants';
 import { buildSystemInstruction } from 'src/common/constants/promts';
 import { FlashcardData } from 'src/common/interfaces/flash-card-data.interface';
+
+type AiError = {
+  status?: unknown;
+  statusCode?: unknown;
+};
+
+function getAiErrorStatus(error: unknown): number | undefined {
+  if (typeof error !== 'object' || error === null) return undefined;
+
+  const aiError = error as AiError;
+  const status = aiError.status ?? aiError.statusCode;
+
+  return typeof status === 'number' ? status : undefined;
+}
 
 @Injectable()
 export class AiService {
@@ -105,7 +129,22 @@ export class AiService {
       };
     } catch (error) {
       console.error('Помилка Gemini API:', error);
-      throw new Error('Не вдалося згенерувати відповідь від ШІ.');
+
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+
+      const aiStatus = getAiErrorStatus(error);
+      const status =
+        aiStatus && aiStatus >= 400 && aiStatus <= 599
+          ? aiStatus
+          : HttpStatus.BAD_GATEWAY;
+      const message =
+        status === AI_SERVICE_UNAVAILABLE_STATUS
+          ? AI_SERVICE_UNAVAILABLE_MESSAGE
+          : AI_SERVICE_ERROR_MESSAGE;
+
+      throw new HttpException(message, status);
     }
   }
 }
