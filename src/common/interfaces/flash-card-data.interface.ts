@@ -3,6 +3,6 @@ export interface FlashcardData {
   sourceLanguage: string;
   targetLanguage: string;
   translation: string;
-  transcription: string;
+  transcription?: string;
   explanation: string;
 }

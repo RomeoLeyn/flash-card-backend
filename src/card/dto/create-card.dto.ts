@@ -18,8 +18,8 @@ export class CreateCardDto {
   translation!: string;
 
   @IsString()
-  @IsNotEmpty()
-  transcription!: string;
+  @IsOptional()
+  transcription?: string;
 
   @IsString()
   @IsOptional()
