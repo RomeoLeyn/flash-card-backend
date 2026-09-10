@@ -4,7 +4,6 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
-import { UpdateUserDto } from './dto/update-user.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from './entities/user.entity';
 import { Repository } from 'typeorm';
@@ -24,10 +23,6 @@ export class UserService {
     });
   }
 
-  findAll() {
-    return `This action returns all user`;
-  }
-
   async findOne(id: string) {
     const user = await this.userRepository.findOne({
       where: { id: id },
@@ -38,14 +33,6 @@ export class UserService {
     }
 
     return user;
-  }
-
-  findByEmail(email: string) {
-    return `This action returns a #${email}`;
-  }
-
-  update(id: number, updateUserDto: UpdateUserDto) {
-    return `This action updates a #${id} user`;
   }
 
   async changePassword(id: string, changePasswordDto: ChangePasswordDto) {
@@ -69,9 +56,5 @@ export class UserService {
 
     user.passwordHash = await bcrypt.hash(changePasswordDto.newPassword, 10);
     await this.userRepository.save(user);
-  }
-
-  remove(id: number) {
-    return `This action removes a #${id} user`;
   }
 }

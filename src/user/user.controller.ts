@@ -5,12 +5,10 @@ import {
   Body,
   Patch,
   Param,
-  Delete,
   UseGuards,
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
-import { UpdateUserDto } from './dto/update-user.dto';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { User } from './entities/user.entity';
 import { ChangePasswordDto } from './dto/change-password.dto';
@@ -25,19 +23,10 @@ export class UserController {
     return this.userService.create(createUserDto);
   }
 
-  @Get()
-  findAll() {
-    return this.userService.findAll();
-  }
-
   @Get(':id')
+  @UseGuards(JwtAuthGuard)
   findOne(@Param('id') id: string) {
     return this.userService.findOne(id);
-  }
-
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
-    return this.userService.update(+id, updateUserDto);
   }
 
   @Patch('/password/update')
@@ -45,10 +34,5 @@ export class UserController {
   changePassword(@CurrentUser() user: User, @Body() dto: ChangePasswordDto) {
     console.log(dto);
     return this.userService.changePassword(user.id, dto);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.userService.remove(+id);
   }
 }
