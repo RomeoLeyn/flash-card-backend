@@ -7,20 +7,23 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from 'src/user/entities/user.entity';
+import { JwtConfig } from 'src/configs/jwt/jwt.config';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([User]),
     JwtModule.registerAsync({
       imports: [ConfigModule],
-      useFactory: (configService: ConfigService) => ({
-        secret:
-          configService.get<string>('JWT_SECRET') || 'boardmaster-secret-key',
-        signOptions: {
-          expiresIn: '7d',
-        },
-      }),
       inject: [ConfigService],
+      useFactory: (configService: ConfigService) => {
+        const jwtConfig = configService.getOrThrow<JwtConfig>('jwt');
+        return {
+          secret: jwtConfig.secret,
+          signOptions: {
+            expiresIn: jwtConfig.expiresIn,
+          },
+        };
+      },
     }),
     PassportModule.register({ defaultStrategy: 'jwt' }),
   ],
