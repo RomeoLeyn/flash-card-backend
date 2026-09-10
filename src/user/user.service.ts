@@ -9,6 +9,8 @@ import { User } from './entities/user.entity';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { plainToInstance } from 'class-transformer';
+import { ResponseUserDto } from './dto/response-user.dto';
 
 @Injectable()
 export class UserService {
@@ -16,10 +18,15 @@ export class UserService {
     @InjectRepository(User) private readonly userRepository: Repository<User>,
   ) {}
 
-  create(createUserDto: CreateUserDto) {
-    return this.userRepository.save({
+  async create(createUserDto: CreateUserDto) {
+    const user = this.userRepository.create({
       email: createUserDto.email,
       passwordHash: bcrypt.hashSync(createUserDto.password, 8),
+    });
+
+    const savedUser = await this.userRepository.save(user);
+    return plainToInstance(ResponseUserDto, savedUser, {
+      excludeExtraneousValues: true,
     });
   }
 

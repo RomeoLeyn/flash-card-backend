@@ -10,6 +10,8 @@ import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { User } from 'src/user/entities/user.entity';
 import { AuthResponseDto, SignInDto, SignUpDto } from './dto/auth.dto';
+import { plainToInstance } from 'class-transformer';
+import { ResponseUserDto } from 'src/user/dto/response-user.dto';
 
 @Injectable()
 export class AuthService {
@@ -41,13 +43,13 @@ export class AuthService {
 
     const accessToken = this.generateAccessToken(savedUser);
 
-    return {
+    return plainToInstance(AuthResponseDto, {
       accessToken,
-      user: {
+      user: plainToInstance(ResponseUserDto, {
         id: savedUser.id,
         email: savedUser.email,
-      },
-    };
+      }),
+    });
   }
 
   async signIn(signInDto: SignInDto): Promise<AuthResponseDto> {
@@ -70,13 +72,13 @@ export class AuthService {
 
     const accessToken = this.generateAccessToken(user);
 
-    return {
+    return plainToInstance(AuthResponseDto, {
       accessToken,
-      user: {
+      user: plainToInstance(ResponseUserDto, {
         id: user.id,
         email: user.email,
-      },
-    };
+      }),
+    });
   }
 
   private generateAccessToken(user: User): string {
