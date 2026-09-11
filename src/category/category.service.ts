@@ -49,9 +49,9 @@ export class CategoryService {
     });
   }
 
-  async findOne(userId: string) {
+  async findOne(userId: string, categoryId: string) {
     const category = await this.categoryRepository.findOne({
-      where: { user: { id: userId } },
+      where: { user: { id: userId }, id: categoryId },
     });
 
     if (!category) {

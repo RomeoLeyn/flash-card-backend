@@ -9,13 +9,15 @@ import { ConfigService } from '@nestjs/config';
 import { CardService } from 'src/card/card.service';
 import type { Card } from 'src/card/entities/card.entity';
 import { CategoryService } from 'src/category/category.service';
-import { AI_SERVICE_UNAVAILABLE_STATUS } from 'src/common/constants/http-status.constants';
+import { AiErrorStatus } from 'src/common/constants/http-status.constants';
 import {
-  AI_SERVICE_ERROR_MESSAGE,
-  AI_SERVICE_UNAVAILABLE_MESSAGE,
-} from 'src/common/constants/ai-messages.constants';
+  AiErrorMessages,
+  CategoryErrorMessages,
+} from 'src/common/constants/messages.constants';
 import { buildSystemInstruction } from 'src/common/constants/promts';
-import { FlashcardData } from 'src/common/interfaces/flash-card-data.interface';
+import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
+import { AiFlashCardDto } from './dto/ai-flash-card.dto';
 
 type AiError = {
   status?: unknown;
@@ -62,9 +64,7 @@ export class AiService {
       );
 
       if (!category) {
-        throw new NotFoundException(
-          'Категорія не знайдена або не належить користувачу.',
-        );
+        throw new NotFoundException(CategoryErrorMessages.CATEGORY_NOT_FOUND);
       }
 
       const response = await this.ai.models.generateContent({
@@ -113,10 +113,20 @@ export class AiService {
       const rawText = response.text;
 
       if (!rawText) {
-        throw new Error('Отримано порожню відповідь від ШІ.');
+        throw new Error(AiErrorMessages.EMPTY_RESPONSE);
       }
 
-      const cards: FlashcardData[] = JSON.parse(rawText) as FlashcardData[];
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(rawText);
+      } catch {
+        throw new HttpException(
+          AiErrorMessages.INVALID_JSON,
+          HttpStatus.BAD_GATEWAY,
+        );
+      }
+
+      const cards = await this.validateAiCards(parsed);
       const result = await this.cardService.bulkCreateFromAi(
         cards,
         userId,
@@ -128,8 +138,6 @@ export class AiService {
         skippedWords: result.skippedWords,
       };
     } catch (error) {
-      console.error('Помилка Gemini API:', error);
-
       if (error instanceof NotFoundException) {
         throw error;
       }
@@ -140,11 +148,45 @@ export class AiService {
           ? aiStatus
           : HttpStatus.BAD_GATEWAY;
       const message =
-        status === AI_SERVICE_UNAVAILABLE_STATUS
-          ? AI_SERVICE_UNAVAILABLE_MESSAGE
-          : AI_SERVICE_ERROR_MESSAGE;
+        status === AiErrorStatus.AI_SERVICE_UNAVAILABLE_STATUS
+          ? AiErrorMessages.AI_SERVICE_UNAVAILABLE_MESSAGE
+          : AiErrorMessages.AI_SERVICE_ERROR_MESSAGE;
 
       throw new HttpException(message, status);
     }
+  }
+
+  private async validateAiCards(rawCards: unknown): Promise<AiFlashCardDto[]> {
+    if (!Array.isArray(rawCards)) {
+      throw new HttpException(
+        AiErrorMessages.INVALID_FORMAT,
+        HttpStatus.BAD_GATEWAY,
+      );
+    }
+
+    const validCards: AiFlashCardDto[] = [];
+
+    for (const rawCard of rawCards) {
+      const dto = plainToInstance(AiFlashCardDto, rawCard);
+      const errors = await validate(dto);
+
+      if (errors.length === 0) {
+        validCards.push(dto);
+      } else {
+        console.warn(
+          `Data invalid: ${JSON.stringify(rawCard)}`,
+          errors.map((e) => Object.values(e.constraints ?? {})).flat(),
+        );
+      }
+    }
+
+    if (validCards.length === 0) {
+      throw new HttpException(
+        AiErrorMessages.NO_VALID_CARDS,
+        HttpStatus.UNPROCESSABLE_ENTITY,
+      );
+    }
+
+    return validCards;
   }
 }

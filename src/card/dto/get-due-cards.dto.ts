@@ -1,4 +1,9 @@
-import { IsOptional, IsUUID, IsString, IsEnum } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsOptional, IsUUID, IsEnum, IsInt, Min, Max } from 'class-validator';
+import {
+  MAX_VALUE_LIMIT,
+  MIN_VALUE_LIMIT,
+} from 'src/common/constants/constants';
 import { CardSortBy, SortOrder } from 'src/common/enums/sort-order.enum';
 
 export class GetDueCardsDto {
@@ -7,7 +12,10 @@ export class GetDueCardsDto {
   categoryId?: string;
 
   @IsOptional()
-  @IsString()
+  @IsInt()
+  @Min(MIN_VALUE_LIMIT)
+  @Max(MAX_VALUE_LIMIT)
+  @Type(() => Number)
   limit?: number = 20;
 
   @IsOptional()
