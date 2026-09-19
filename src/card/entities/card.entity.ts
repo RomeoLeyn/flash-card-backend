@@ -41,6 +41,9 @@ export class Card {
   @Column({ type: 'text', nullable: true })
   explanation!: string;
 
+  @Column({ type: 'text', nullable: true })
+  example!: string | null;
+
   @Column({ default: false })
   createdByAi!: boolean;
 

@@ -25,6 +25,10 @@ export class CreateCardDto {
   @IsOptional()
   explanation?: string;
 
+  @IsString()
+  @IsOptional()
+  example?: string;
+
   @IsUUID()
   @IsNotEmpty()
   categoryId!: string;

@@ -1,5 +1,6 @@
 // src/common/dto/ai-flashcard.dto.ts
 import { IsString, IsNotEmpty, MaxLength } from 'class-validator';
+import { IsOptional } from 'class-validator';
 
 export class AiFlashCardDto {
   @IsString()
@@ -21,8 +22,14 @@ export class AiFlashCardDto {
   translation!: string;
 
   @IsString()
+  @IsOptional()
   transcription?: string;
 
   @IsString()
   explanation!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(500)
+  example!: string;
 }

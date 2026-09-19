@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type } from '@google/genai';
+import Groq from 'groq-sdk';
 import {
   HttpException,
   HttpStatus,
@@ -35,7 +35,7 @@ function getAiErrorStatus(error: unknown): number | undefined {
 
 @Injectable()
 export class AiService {
-  private ai!: GoogleGenAI;
+  private groq!: Groq;
 
   constructor(
     private readonly configService: ConfigService,
@@ -44,8 +44,8 @@ export class AiService {
   ) {}
 
   onModuleInit() {
-    const apiKey = this.configService.get<string>('GEMINI_API_KEY');
-    this.ai = new GoogleGenAI({ apiKey });
+    const apiKey = this.configService.get<string>('GROQ_API_KEY');
+    this.groq = new Groq({ apiKey });
   }
 
   async generateResponse(
@@ -67,50 +67,28 @@ export class AiService {
         throw new NotFoundException(CategoryErrorMessages.CATEGORY_NOT_FOUND);
       }
 
-      const response = await this.ai.models.generateContent({
-        model: 'gemini-3.5-flash',
-
-        config: {
-          systemInstruction: buildSystemInstruction({
-            sourceLanguage: category.sourceLanguage,
-            targetLanguage: category.targetLanguage,
-          }),
-          temperature: 0.7,
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                word: { type: Type.STRING },
-                sourceLanguage: { type: Type.STRING },
-                targetLanguage: { type: Type.STRING },
-                translation: { type: Type.STRING },
-                transcription: { type: Type.STRING },
-                explanation: { type: Type.STRING },
-              },
-              required: [
-                'word',
-                'sourceLanguage',
-                'targetLanguage',
-                'translation',
-                'explanation',
-              ],
-              propertyOrdering: [
-                'word',
-                'sourceLanguage',
-                'targetLanguage',
-                'translation',
-                'explanation',
-              ],
-            },
-          },
-        },
-
-        contents: userPrompt,
+      const systemInstruction = buildSystemInstruction({
+        sourceLanguage: category.sourceLanguage,
+        targetLanguage: category.targetLanguage,
       });
 
-      const rawText = response.text;
+      const completion = await this.groq.chat.completions.create({
+        model: 'qwen/qwen3.8-27b',
+        temperature: 0.7,
+        response_format: { type: 'json_object' },
+        messages: [
+          {
+            role: 'system',
+            content: `${systemInstruction}
+
+Respond ONLY with valid JSON in this exact shape:
+{ "cards": [ { "word": "...", "sourceLanguage": "...", "targetLanguage": "...", "translation": "...", "transcription": "...", "explanation": "...", "example": "..." } ] }`,
+          },
+          { role: 'user', content: userPrompt },
+        ],
+      });
+
+      const rawText = completion.choices[0]?.message?.content;
 
       if (!rawText) {
         throw new Error(AiErrorMessages.EMPTY_RESPONSE);
@@ -126,7 +104,7 @@ export class AiService {
         );
       }
 
-      const cards = await this.validateAiCards(parsed);
+      const cards = await this.validateAiCards(this.extractCardsArray(parsed));
       const result = await this.cardService.bulkCreateFromAi(
         cards,
         userId,
@@ -154,6 +132,19 @@ export class AiService {
 
       throw new HttpException(message, status);
     }
+  }
+
+  private extractCardsArray(parsed: unknown): unknown {
+    if (Array.isArray(parsed)) return parsed;
+    if (
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      'cards' in parsed &&
+      Array.isArray(parsed.cards)
+    ) {
+      return (parsed as { cards: unknown[] }).cards;
+    }
+    return parsed;
   }
 
   private async validateAiCards(rawCards: unknown): Promise<AiFlashCardDto[]> {
