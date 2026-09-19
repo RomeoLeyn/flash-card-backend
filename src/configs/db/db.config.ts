@@ -11,7 +11,7 @@ export const dbConfig = async (
     migrations: [__dirname + '/../../migrations/*{.ts,.js}'],
     autoLoadEntities: true,
     synchronize: true,
-    migrationsRun: true,
+    migrationsRun: false,
     logging: true,
   };
 };
