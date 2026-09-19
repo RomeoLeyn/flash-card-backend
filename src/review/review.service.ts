@@ -146,8 +146,6 @@ export class ReviewService {
       qb.orderBy(`card.${sortBy}`, sortOrder, 'NULLS FIRST');
     }
 
-    qb.take();
-
     return qb.getMany();
   }
 
