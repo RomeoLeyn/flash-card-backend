@@ -5,4 +5,5 @@ export interface FlashcardData {
   translation: string;
   transcription?: string;
   explanation: string;
+  example: string;
 }
