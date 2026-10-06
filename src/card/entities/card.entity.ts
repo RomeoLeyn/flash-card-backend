@@ -67,7 +67,7 @@ export class Card {
   isLeech!: boolean;
 
   @ManyToOne(() => Category, (category) => category.cards, {
-    onDelete: 'SET NULL',
+    onDelete: 'CASCADE',
     nullable: true,
   })
   category!: Category | null;
