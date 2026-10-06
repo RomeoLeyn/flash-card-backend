@@ -14,10 +14,6 @@ export class AiController {
     @Body() aiRequest: AiRequestDto,
     @CurrentUser('id') userId: string,
   ) {
-    return this.aiService.generateResponse(
-      aiRequest.prompt,
-      aiRequest.categoryId,
-      userId,
-    );
+    return this.aiService.generateResponse(aiRequest, userId);
   }
 }
