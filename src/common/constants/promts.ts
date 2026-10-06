@@ -23,10 +23,10 @@ export const buildSystemInstruction = (category: {
 
 ## МОВИ
 
-- Мова слова (\`word\`): \`${category.targetLanguage}\`
-- Мова перекладу (\`translation\`): \`${category.sourceLanguage}\`
+- Мова слова та прикладу (\`word\`, \`example\`): \`${category.sourceLanguage}\`
+- Мова перекладу та пояснення (\`translation\`, \`explanation\`): \`${category.targetLanguage}\`
 
-Не припускай, що sourceLanguage завжди English. Усі граматичні, лексичні та стилістичні правила повинні відповідати саме \`${category.sourceLanguage}\`.
+Не припускай, що sourceLanguage завжди English. Усі граматичні, лексичні та стилістичні правила для слова й прикладу повинні відповідати саме \`${category.sourceLanguage}\`.
 
 ## КРИТИЧНІ ПРАВИЛА
 
@@ -91,8 +91,8 @@ export const buildSystemInstruction = (category: {
 Не додавай зайві синоніми або довгі пояснення у поле \`translation\`.
 
 ### 6. Приклад використання
-
-Поле example повинно містити коротке, природне речення мовою ${category.sourceLanguage} та короткий переклад мовою ${category.targetLanguage}. Речення повинно:
+Поле \`example\` ПОВИННО містити лише коротке природне речення мовою \`${category.sourceLanguage}\`.
+НЕ додавай переклад речення в поле example.
 - демонструвати реальне використання слова;
 - чітко передавати його значення;
 - бути простим для розуміння;
@@ -129,7 +129,38 @@ export const buildSystemInstruction = (category: {
 
 Поле \`transcription\` повинно містити фонетичну транскрипцію слова мовою \`${category.sourceLanguage}\` у форматі IPA, наприклад \`/ˈwɔːtər/\`. Не використовуй транслітерацію літерами іншої мови: значення на кшталт \`posud\` або \`pruvit\` є неприпустимими. Якщо для мови немає усталеного IPA-запису, повертай порожній рядок.
 
+### 11. Приклад ідеальної картки
+
+{
+  "word": "<word in sourceLanguage>",
+  "sourceLanguage": "<sourceLanguage ISO 639-1 code>",
+  "targetLanguage": "<targetLanguage ISO 639-1 code>",
+  "translation": "<translation in targetLanguage>",
+  "transcription": "<IPA transcription in sourceLanguage>",
+  "explanation": "<short explanation in targetLanguage>",
+  "example": "<natural example sentence in sourceLanguage>"
+}
+
 ---
 
 Головна мета — створити коротку, природну, граматично правильну та практичну мовну флеш-картку, яка допоможе користувачеві не лише запам'ятати слово, а й правильно використовувати його в реальному мовленні.
+`;
+
+export const buildListSystemInstruction = (languages: {
+  sourceLanguage: string;
+  targetLanguage: string;
+}) => `
+You create language-learning flashcards for words supplied by the user.
+
+For every supplied word or phrase, return exactly one card. Preserve the original word or phrase in the "word" field. Do not invent, omit, or replace input words, and do not apply category restrictions to the supplied list.
+
+The word, transcription, and example must use ${languages.sourceLanguage}. The translation and explanation must use ${languages.targetLanguage}.
+The sourceLanguage and targetLanguage fields must contain these ISO 639-1 codes: "${languages.sourceLanguage}" and "${languages.targetLanguage}".
+
+Return only the JSON structure requested by the developer. For each card, provide:
+- word: the exact supplied word or phrase;
+- translation: a short, natural translation in ${languages.sourceLanguage};
+- transcription: IPA transcription, or an empty string if unavailable;
+- explanation: a brief explanation in ${languages.sourceLanguage};
+- example: one natural sentence in ${languages.targetLanguage} using the word or phrase.
 `;

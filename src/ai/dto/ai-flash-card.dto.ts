@@ -1,5 +1,4 @@
-// src/common/dto/ai-flashcard.dto.ts
-import { IsString, IsNotEmpty, MaxLength } from 'class-validator';
+import { IsString, IsNotEmpty, MaxLength, Matches } from 'class-validator';
 import { IsOptional } from 'class-validator';
 
 export class AiFlashCardDto {
@@ -10,10 +9,16 @@ export class AiFlashCardDto {
 
   @IsString()
   @IsNotEmpty()
+  @Matches(/^[a-z]{2}$/, {
+    message: 'sourceLanguage must be ISO 639-1 code',
+  })
   sourceLanguage!: string;
 
   @IsString()
   @IsNotEmpty()
+  @Matches(/^[a-z]{2}$/, {
+    message: 'targetLanguage must be ISO 639-1 code',
+  })
   targetLanguage!: string;
 
   @IsString()
