@@ -4,6 +4,7 @@ import { validate } from 'class-validator';
 import { CardService } from 'src/card/card.service';
 import { CategoryService } from 'src/category/category.service';
 import { AiGenerationMode } from './ai-generation-mode.enum';
+import { AiGenerationLevel } from './ai-generation-level.enum';
 import { AiFlashCardDto } from './dto/ai-flash-card.dto';
 import { AiRequestDto } from './dto/ai-request.dto';
 import { AiService } from './ai.service';
@@ -72,7 +73,7 @@ const categoryId = '0c6c5e5b-3d98-4bf2-9696-42b85a7ac07b';
 
 describe('AiService generation counts and retries', () => {
   it('uses the requested count and keeps retrying after partial responses', async () => {
-    const { service, create } = makeService([
+    const { service, create, cardService } = makeService([
       {
         choices: [
           {
@@ -96,6 +97,7 @@ describe('AiService generation counts and retries', () => {
         categoryId,
         count: 3,
         prompt: 'food',
+        level: AiGenerationLevel.B2,
       },
       'user-id',
     );
@@ -103,7 +105,18 @@ describe('AiService generation counts and retries', () => {
     expect(result.requestedCount).toBe(3);
     expect(result.generatedCount).toBe(3);
     expect(result.retryAttempts).toBe(2);
+    expect(result.level).toBe(AiGenerationLevel.B2);
     expect(create).toHaveBeenCalledTimes(3);
+    expect(cardService.bulkCreateFromAi).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({ level: AiGenerationLevel.B2 }),
+      ]),
+      'user-id',
+      categoryId,
+    );
+    for (const [request] of create.mock.calls) {
+      expect(request.messages[0].content).toContain('РІВЕНЬ CEFR: B2');
+    }
   });
 
   it('creates cards for supplied words and retries only missing words', async () => {
@@ -124,6 +137,7 @@ describe('AiService generation counts and retries', () => {
     expect(result.requestedCount).toBe(2);
     expect(result.generatedCount).toBe(2);
     expect(result.retryAttempts).toBe(1);
+    expect(result.level).toBeNull();
   });
 
   it('uses the dedicated translation prompt for supplied words', async () => {
@@ -191,12 +205,21 @@ describe('AiService generation counts and retries', () => {
       categoryId,
       count: 50,
       prompt: 'food',
+      level: AiGenerationLevel.C1,
     });
     const overLimit = plainToInstance(AiRequestDto, {
       mode: AiGenerationMode.GENERATE,
       categoryId,
       count: 51,
       prompt: 'food',
+      level: AiGenerationLevel.C1,
+    });
+    const invalidLevel = plainToInstance(AiRequestDto, {
+      mode: AiGenerationMode.GENERATE,
+      categoryId,
+      count: 5,
+      prompt: 'food',
+      level: 'C3',
     });
     const listRequest = plainToInstance(AiRequestDto, {
       mode: AiGenerationMode.FROM_LIST,
@@ -207,6 +230,11 @@ describe('AiService generation counts and retries', () => {
     expect(await validate(atLimit)).toHaveLength(0);
     expect(
       (await validate(overLimit)).some((error) => error.property === 'count'),
+    ).toBe(true);
+    expect(
+      (await validate(invalidLevel)).some(
+        (error) => error.property === 'level',
+      ),
     ).toBe(true);
     expect(await validate(listRequest)).toHaveLength(0);
   });

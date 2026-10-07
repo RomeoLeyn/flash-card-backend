@@ -1,5 +1,6 @@
 import { Category } from 'src/category/entities/category.entity';
 import { User } from 'src/user/entities/user.entity';
+import { AiGenerationLevel } from 'src/ai/ai-generation-level.enum';
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -46,6 +47,14 @@ export class Card {
 
   @Column({ default: false })
   createdByAi!: boolean;
+
+  @Column({
+    type: 'enum',
+    enum: AiGenerationLevel,
+    enumName: 'card_level_enum',
+    nullable: true,
+  })
+  level!: AiGenerationLevel | null;
 
   // --- SRS поля ---
   @Column({ type: 'float', default: 2.5 })

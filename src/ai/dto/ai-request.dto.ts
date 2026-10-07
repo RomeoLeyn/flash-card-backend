@@ -5,6 +5,7 @@ import {
   IsEnum,
   IsInt,
   IsNotEmpty,
+  IsOptional,
   IsString,
   IsUUID,
   Matches,
@@ -14,6 +15,7 @@ import {
   ValidateIf,
 } from 'class-validator';
 import { AiGenerationMode } from '../ai-generation-mode.enum';
+import { AiGenerationLevel } from '../ai-generation-level.enum';
 
 export class AiRequestDto {
   @IsEnum(AiGenerationMode)
@@ -30,6 +32,10 @@ export class AiRequestDto {
   @Min(1)
   @Max(50)
   count?: number;
+
+  @IsOptional()
+  @IsEnum(AiGenerationLevel)
+  level?: AiGenerationLevel;
 
   @ValidateIf(
     (request: AiRequestDto) =>

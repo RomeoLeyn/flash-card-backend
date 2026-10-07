@@ -20,6 +20,7 @@ import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { User } from 'src/user/entities/user.entity';
 import { CardSortBy, SortOrder } from 'src/common/enums/sort-order.enum';
+import { BulkDeleteCardsDto } from './dto/bulk-delete-cards.dto';
 
 @Controller('cards')
 export class CardController {
@@ -67,6 +68,15 @@ export class CardController {
     @Body() updateCardDto: UpdateCardDto,
   ) {
     return this.cardService.update(id, updateCardDto, userId);
+  }
+
+  @Delete('bulk')
+  @UseGuards(JwtAuthGuard)
+  bulkRemove(
+    @CurrentUser('id') userId: string,
+    @Body() bulkDeleteCardsDto: BulkDeleteCardsDto,
+  ) {
+    return this.cardService.bulkRemove(bulkDeleteCardsDto.ids, userId);
   }
 
   @Delete(':id')

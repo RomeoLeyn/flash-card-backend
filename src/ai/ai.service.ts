@@ -21,6 +21,7 @@ import {
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { AiGenerationMode } from './ai-generation-mode.enum';
+import { AiGenerationLevel } from './ai-generation-level.enum';
 import { AiFlashCardDto } from './dto/ai-flash-card.dto';
 import { AiRequestDto } from './dto/ai-request.dto';
 
@@ -70,6 +71,7 @@ export class AiService {
     request: AiRequestDto,
     userId: string,
   ): Promise<{
+    level: AiGenerationLevel | null;
     requestedCount: number;
     generatedCount: number;
     retryAttempts: number;
@@ -109,7 +111,7 @@ export class AiService {
           : requestedWords!.length;
       const systemInstruction = requestedWords
         ? buildListSystemInstruction(languages)
-        : buildSystemInstruction(languages);
+        : buildSystemInstruction(languages, request.level);
       const userPrompt =
         request.mode === AiGenerationMode.GENERATE
           ? `${request.prompt}\n\nСтвори рівно ${requestedCount} унікальних карток.`
@@ -189,6 +191,7 @@ Respond ONLY with valid JSON in this exact shape:
           category.sourceLanguage,
           category.targetLanguage,
           requestedWords,
+          request.level,
         );
 
         retryAttempts = additional.retryAttempts;
@@ -205,11 +208,21 @@ Respond ONLY with valid JSON in this exact shape:
       }
 
       const result = await this.cardService.bulkCreateFromAi(
-        finalCards,
+        finalCards.map((card) => ({
+          ...card,
+          level:
+            request.mode === AiGenerationMode.GENERATE
+              ? (request.level ?? null)
+              : null,
+        })),
         userId,
         request.categoryId,
       );
       return {
+        level:
+          request.mode === AiGenerationMode.GENERATE
+            ? (request.level ?? null)
+            : null,
         requestedCount,
         generatedCount: finalCards.length,
         retryAttempts,
@@ -289,6 +302,7 @@ Respond ONLY with valid JSON in this exact shape:
     sourceLanguage: string,
     targetLanguage: string,
     requestedWords?: string[],
+    level?: AiRequestDto['level'],
   ): Promise<{
     valid: AiFlashCardDto[];
     skippedWords: string[];
@@ -326,7 +340,7 @@ Respond ONLY with valid JSON in this exact shape:
       try {
         const systemInstruction = requestedWords
           ? buildListSystemInstruction({ sourceLanguage, targetLanguage })
-          : buildSystemInstruction({ sourceLanguage, targetLanguage });
+          : buildSystemInstruction({ sourceLanguage, targetLanguage }, level);
         const completion = await this.groq.chat.completions.create({
           model: 'qwen/qwen3.8-27b',
           temperature: 0.7,
