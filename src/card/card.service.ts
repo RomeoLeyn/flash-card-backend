@@ -95,6 +95,7 @@ export class CardService {
         transcription: c.transcription,
         explanation: c.explanation,
         example: c.example,
+        level: c.level ?? null,
         createdByAi: true,
         user: { id: userId },
         category: { id: categoryId },
@@ -152,6 +153,21 @@ export class CardService {
   async remove(id: string, userId: string): Promise<void> {
     const card = await this.findOne(id, userId);
     await this.cardRepository.remove(card);
+  }
+
+  async bulkRemove(
+    ids: string[],
+    userId: string,
+  ): Promise<{ deleted: number }> {
+    const result = await this.cardRepository
+      .createQueryBuilder()
+      .delete()
+      .from(Card)
+      .where('id IN (:...ids)', { ids })
+      .andWhere('"userId" = :userId', { userId })
+      .execute();
+
+    return { deleted: result.affected ?? 0 };
   }
 
   async update(
