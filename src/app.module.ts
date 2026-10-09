@@ -11,12 +11,17 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { dbConfig } from './configs/db/db.config';
 import jwtConfig from './configs/jwt/jwt.config';
+import { validateEnvironment } from './configs/env/env.validation';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true, load: [jwtConfig] }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      load: [jwtConfig],
+      validate: validateEnvironment,
+    }),
     TypeOrmModule.forRootAsync({
-      imports: [ConfigModule.forRoot({ isGlobal: true })],
+      imports: [ConfigModule],
       useFactory: dbConfig,
       inject: [ConfigService],
     }),
