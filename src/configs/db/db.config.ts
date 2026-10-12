@@ -20,8 +20,8 @@ export const getDbConfig = (
     entities: [dbEntityPattern],
     migrations: [dbMigrationPattern],
     autoLoadEntities: false,
-    synchronize: false,
-    migrationsRun: true,
+    synchronize: true,
+    migrationsRun: false,
     logging: process.env.NODE_ENV !== 'production',
   };
 };
