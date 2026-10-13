@@ -117,6 +117,24 @@ describe('AiService generation counts and retries', () => {
     for (const [request] of create.mock.calls) {
       expect(request.messages[0].content).toContain('РІВЕНЬ CEFR: B2');
     }
+    expect(create.mock.calls[0][0].messages[0].content).toContain(
+      'Мова слова, транскрипції та прикладу (`word`, `transcription`, `example`): цільова мова, яку користувач вивчає — `uk`',
+    );
+    expect(create.mock.calls[0][0].messages[0].content).toContain(
+      'Мова перекладу та пояснення (`translation`, `explanation`): рідна мова користувача — `en`',
+    );
+    expect(create.mock.calls[0][0].messages[0].content).toContain(
+      '"word": "<word in targetLanguage>"',
+    );
+    expect(create.mock.calls[0][0].messages[0].content).toContain(
+      '"translation": "<translation in sourceLanguage>"',
+    );
+    expect(create.mock.calls[0][0].messages[0].content).toContain(
+      '"explanation": "<short explanation in sourceLanguage>"',
+    );
+    expect(create.mock.calls[0][0].messages[0].content).toContain(
+      '"example": "<natural example sentence in targetLanguage using word>"',
+    );
   });
 
   it('creates cards for supplied words and retries only missing words', async () => {
@@ -155,6 +173,18 @@ describe('AiService generation counts and retries', () => {
     const messages = create.mock.calls[0][0].messages;
     expect(messages[0].content).toContain(
       'Preserve the original word or phrase',
+    );
+    expect(messages[0].content).toContain(
+      'word, transcription, and example: source language (en)',
+    );
+    expect(messages[0].content).toContain(
+      'translation and explanation: target language (uk)',
+    );
+    expect(messages[0].content).toContain(
+      'translation: a short, natural translation in uk',
+    );
+    expect(messages[0].content).toContain(
+      'example: one natural sentence in en',
     );
     expect(messages[0].content).not.toContain('Відповідність категорії');
   });
