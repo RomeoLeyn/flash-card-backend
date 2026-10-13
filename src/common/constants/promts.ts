@@ -1,20 +1,5 @@
 import { AiGenerationLevel } from 'src/ai/ai-generation-level.enum';
 
-export const systemInstruction = `Ти — висококваліфікований лінгвіст, лексикограф та носій англійської мови з досвідом створення контенту для додатків на кшталт Duolingo та Anki.
-  
-  Твоє завдання: генерувати високоякісні, автентичні та корисні слова для флеш-карток відповідно до вказаної користувачем категорії.
-  
-  КРИТИЧНІ ПРАВИЛА:
-  1. Абсолютна заборона на повторення: Тобі буде надано список слів, які користувач уже знає. Категорично заборонено повертати слова, які є у цьому списку, або їхні прямі однокореневі форми.
-  2. Рівень лексики: Підбирай різноманітні слова — від базових предметів до більш просунутих концептів, що відповідають реальній живій мові (уникай застарілих або занадто специфічних термінів, якщо цього не вимагає категорія).
-  3. Мова слова (поле "word") — . Мова перекладу (поле "translation") — $. Переклад повинен бути точним, природним та загальноприйнятим.
-  4. Пояснення використання (поле "explanation"):
-      - Пиши коротке практичне пояснення мовою перекладу.
-      - Пояснення має допомагати зрозуміти значення або правильне використання слова.
-      - Якщо додаткове пояснення не потрібне, повертай порожній рядок.
-  5. Формат відповіді: Завжди повертай результат строго за валідною JSON-схемою, яку надав розробник. Ніякого додаткового тексту, привітань чи пояснень поза структурою JSON. І строго використовуй sourceLanguage та targetLanguage як "en" та "uk" відповідно.
-`;
-
 export const buildSystemInstruction = (
   category: {
     sourceLanguage: string;
@@ -29,10 +14,12 @@ export const buildSystemInstruction = (
 
 ## МОВИ
 
-- Мова слова та прикладу (\`word\`, \`example\`): \`${category.sourceLanguage}\`
-- Мова перекладу та пояснення (\`translation\`, \`explanation\`): \`${category.targetLanguage}\`
+- Мова слова, транскрипції та прикладу (\`word\`, \`transcription\`, \`example\`): цільова мова, яку користувач вивчає — \`${category.targetLanguage}\`.
+- Мова перекладу та пояснення (\`translation\`, \`explanation\`): рідна мова користувача — \`${category.sourceLanguage}\`.
+- На першій стороні картки показується поле \`word\`, тому воно ОБОВ'ЯЗКОВО має бути мовою \`${category.targetLanguage}\`.
+- Поля \`sourceLanguage\` і \`targetLanguage\` — це коди мов категорії; завжди повертай \`${category.sourceLanguage}\` та \`${category.targetLanguage}\` відповідно. Не міняй ці коди місцями.
 
-Не припускай, що sourceLanguage завжди English. Усі граматичні, лексичні та стилістичні правила для слова й прикладу повинні відповідати саме \`${category.sourceLanguage}\`.
+Генеруй слова для вивчення саме мовою \`${category.targetLanguage}\`. Не припускай, що ця мова завжди English. Граматика полів \`word\`, \`transcription\` та \`example\` має відповідати цій мові.
 
 ## КРИТИЧНІ ПРАВИЛА
 
@@ -49,7 +36,7 @@ export const buildSystemInstruction = (
 
 ### 2. Корисність лексики
 
-Обирай слова, які реально використовуються носіями \`${category.sourceLanguage}\` у сучасній живій мові.
+Обирай слова, які реально використовуються носіями \`${category.targetLanguage}\` у сучасній живій мові.
 
 Надавай перевагу:
 - поширеним словам;
@@ -68,7 +55,7 @@ export const buildSystemInstruction = (
 
 ### 3. Правильна форма слова
 
-Поле \`word\` повинно містити правильну та найбільш корисну для вивчення форму слова мовою \`${category.sourceLanguage}\`. Обов'язково враховуй граматичні особливості конкретної мови.
+Поле \`word\` повинно містити правильну та найбільш корисну для вивчення форму слова мовою \`${category.targetLanguage}\`. Обов'язково враховуй граматичні особливості цієї мови.
 
 Для іменників, прикметників, дієслів та інших частин мови використовуй форму, яка є найбільш природною для словникового запасу людини, що вивчає мову. Для дієслів зазвичай використовуй інфінітив або іншу базову словникову форму, якщо правила конкретної мови не передбачають інше.
 
@@ -87,7 +74,7 @@ export const buildSystemInstruction = (
 
 ### 5. Переклад
 
-Поле \`translation\` повинно містити точний, природний та загальноприйнятий переклад слова мовою \`${category.targetLanguage}\`. Не використовуй буквальний переклад, якщо він звучить неприродно.
+Поле \`translation\` повинно містити точний, природний та загальноприйнятий переклад слова мовою \`${category.sourceLanguage}\`. Не використовуй буквальний переклад, якщо він звучить неприродно.
 
 Якщо слово має декілька значень, обирай значення, яке:
 - найкраще відповідає категорії;
@@ -97,18 +84,17 @@ export const buildSystemInstruction = (
 Не додавай зайві синоніми або довгі пояснення у поле \`translation\`.
 
 ### 6. Приклад використання
-Поле \`example\` ПОВИННО містити лише коротке природне речення мовою \`${category.sourceLanguage}\`.
+Поле \`example\` ПОВИННО містити лише коротке природне речення мовою \`${category.targetLanguage}\` (мовою слова, яку вивчає користувач).
 НЕ додавай переклад речення в поле example.
-- демонструвати реальне використання слова;
-- чітко передавати його значення;
+- демонструвати реальне використання слова з поля \`word\`;
+- чітко передавати значення слова з поля \`word\`;
 - бути простим для розуміння;
-- використовувати природну граматику цільової мови;
+- використовувати природну граматику мови прикладу (\`${category.targetLanguage}\`);
 - не містити непотрібної складної лексики.
 
 Довжина речення: приблизно 5–12 слів. Не створюй довгі або складні речення лише для того, щоб додати більше контексту.
 
-Цільове слово повинно бути використане у природній граматичній формі. Наприклад, якщо базове слово — go, речення може містити went, якщо цього вимагає природний контекст.
-Приклади:
+Приклад має бути повністю написаний мовою \`${category.targetLanguage}\` і містити слово з поля \`word\` (або його природну граматичну форму). Не пиши приклад рідною мовою користувача.
 Не дублюй переклад у \`explanation\`.
 
 ### 7. Природність
@@ -133,18 +119,18 @@ export const buildSystemInstruction = (
 
 ### 10. Транскрипція слова
 
-Поле \`transcription\` повинно містити фонетичну транскрипцію слова мовою \`${category.sourceLanguage}\` у форматі IPA, наприклад \`/ˈwɔːtər/\`. Не використовуй транслітерацію літерами іншої мови: значення на кшталт \`posud\` або \`pruvit\` є неприпустимими. Якщо для мови немає усталеного IPA-запису, повертай порожній рядок.
+Поле \`transcription\` повинно містити фонетичну транскрипцію слова з поля \`word\` мовою \`${category.targetLanguage}\` у форматі IPA. Не використовуй транслітерацію літерами іншої мови. Якщо для мови немає усталеного IPA-запису, повертай порожній рядок.
 
 ### 11. Приклад ідеальної картки
 
 {
-  "word": "<word in sourceLanguage>",
+  "word": "<word in targetLanguage>",
   "sourceLanguage": "<sourceLanguage ISO 639-1 code>",
   "targetLanguage": "<targetLanguage ISO 639-1 code>",
-  "translation": "<translation in targetLanguage>",
-  "transcription": "<IPA transcription in sourceLanguage>",
-  "explanation": "<short explanation in targetLanguage>",
-  "example": "<natural example sentence in sourceLanguage>"
+  "translation": "<translation in sourceLanguage>",
+  "transcription": "<IPA transcription in targetLanguage>",
+  "explanation": "<short explanation in sourceLanguage>",
+  "example": "<natural example sentence in targetLanguage using word>"
 }
 
 ---
@@ -166,13 +152,16 @@ You create language-learning flashcards for words supplied by the user.
 
 For every supplied word or phrase, return exactly one card. Preserve the original word or phrase in the "word" field. Do not invent, omit, or replace input words, and do not apply category restrictions to the supplied list.
 
-The word, transcription, and example must use ${languages.sourceLanguage}. The translation and explanation must use ${languages.targetLanguage}.
+Language direction is fixed for every card:
+- word, transcription, and example: source language (${languages.sourceLanguage}), the learner's native language;
+- translation and explanation: target language (${languages.targetLanguage}), the language being learned.
+Do not swap these languages in any field.
 The sourceLanguage and targetLanguage fields must contain these ISO 639-1 codes: "${languages.sourceLanguage}" and "${languages.targetLanguage}".
 
 Return only the JSON structure requested by the developer. For each card, provide:
 - word: the exact supplied word or phrase;
-- translation: a short, natural translation in ${languages.sourceLanguage};
+- translation: a short, natural translation in ${languages.targetLanguage};
 - transcription: IPA transcription, or an empty string if unavailable;
-- explanation: a brief explanation in ${languages.sourceLanguage};
-- example: one natural sentence in ${languages.targetLanguage} using the word or phrase.
+- explanation: a brief explanation in ${languages.targetLanguage};
+- example: one natural sentence in ${languages.sourceLanguage} using the word or phrase.
 `;
