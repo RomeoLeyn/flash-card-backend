@@ -3,6 +3,8 @@ import { AiService } from './ai.service';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { AiRequestDto } from './dto/ai-request.dto';
+import { ExplainWordRequestDto } from './dto/explain-word-request.dto';
+import { AiExplainRateLimitGuard } from './ai-explain-rate-limit.guard';
 
 @Controller('ai')
 export class AiController {
@@ -15,5 +17,11 @@ export class AiController {
     @CurrentUser('id') userId: string,
   ) {
     return this.aiService.generateResponse(aiRequest, userId);
+  }
+
+  @Post('/explain')
+  @UseGuards(JwtAuthGuard, AiExplainRateLimitGuard)
+  async explainWord(@Body() request: ExplainWordRequestDto) {
+    return this.aiService.explainWord(request);
   }
 }

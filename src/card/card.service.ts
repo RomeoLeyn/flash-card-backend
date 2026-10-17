@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { CreateCardDto } from './dto/create-card.dto';
 import { UpdateCardDto } from './dto/update-card.dto';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -7,6 +11,27 @@ import { Card } from './entities/card.entity';
 import { CategoryService } from '../category/category.service';
 import { FlashcardData } from 'src/common/interfaces/flash-card-data.interface';
 import { CardSortBy, SortOrder } from 'src/common/enums/sort-order.enum';
+
+function getDatabaseErrorCode(error: unknown): string | undefined {
+  if (
+    typeof error !== 'object' ||
+    error === null ||
+    !('driverError' in error)
+  ) {
+    return undefined;
+  }
+
+  const driverError = error.driverError;
+  if (
+    typeof driverError !== 'object' ||
+    driverError === null ||
+    !('code' in driverError)
+  ) {
+    return undefined;
+  }
+
+  return typeof driverError.code === 'string' ? driverError.code : undefined;
+}
 
 @Injectable()
 export class CardService {
@@ -21,6 +46,24 @@ export class CardService {
       userId,
     );
 
+    const duplicate = await this.cardRepository
+      .createQueryBuilder('card')
+      .where('card.userId = :userId', { userId })
+      .andWhere('card.sourceLanguage = :sourceLanguage', {
+        sourceLanguage: createCardDto.sourceLanguage,
+      })
+      .andWhere('card.targetLanguage = :targetLanguage', {
+        targetLanguage: createCardDto.targetLanguage,
+      })
+      .andWhere('LOWER(TRIM(card.word)) = LOWER(TRIM(:word))', {
+        word: createCardDto.word,
+      })
+      .getOne();
+
+    if (duplicate) {
+      throw new ConflictException('A card with this word already exists.');
+    }
+
     const card = this.cardRepository.create({
       word: createCardDto.word,
       sourceLanguage: createCardDto.sourceLanguage,
@@ -34,7 +77,15 @@ export class CardService {
       createdByAi: false,
     });
 
-    return this.cardRepository.save(card);
+    try {
+      return await this.cardRepository.save(card);
+    } catch (error) {
+      if (getDatabaseErrorCode(error) === '23505') {
+        throw new ConflictException('A card with this word already exists.');
+      }
+
+      throw error;
+    }
   }
 
   async bulkCreateFromAi(

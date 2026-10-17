@@ -7,7 +7,9 @@ import { AiGenerationMode } from './ai-generation-mode.enum';
 import { AiGenerationLevel } from './ai-generation-level.enum';
 import { AiFlashCardDto } from './dto/ai-flash-card.dto';
 import { AiRequestDto } from './dto/ai-request.dto';
+import { ExplainWordRequestDto } from './dto/explain-word-request.dto';
 import { AiService } from './ai.service';
+import { HttpException } from '@nestjs/common';
 
 type CompletionResponse = {
   choices: { message: { content: string } }[];
@@ -267,5 +269,88 @@ describe('AiService generation counts and retries', () => {
       ),
     ).toBe(true);
     expect(await validate(listRequest)).toHaveLength(0);
+  });
+});
+
+describe('AiService word explanations', () => {
+  const request: ExplainWordRequestDto = {
+    word: 'deleted',
+    sentence: 'I accidentally deleted the important file.',
+    sourceLanguage: 'uk',
+    targetLanguage: 'en',
+  };
+  const explanation = {
+    word: 'delete',
+    sourceLanguage: 'uk',
+    targetLanguage: 'en',
+    translation: 'видаляти',
+    transcription: '/dɪˈliːt/',
+    explanation: 'Видаляти або стирати дані, файли чи інформацію.',
+    example: 'I deleted the old files yesterday.',
+    detailedExplanation:
+      'Deleted — форма минулого часу дієслова delete; дія відбулася в минулому.',
+  };
+
+  it('returns a flashcard and contextual explanation without creating a card', async () => {
+    const { service, create, cardService } = makeService([
+      {
+        choices: [{ message: { content: JSON.stringify(explanation) } }],
+      },
+    ]);
+
+    const result = await service.explainWord(request);
+
+    expect(result).toEqual({ ...explanation, originalForm: 'deleted' });
+    expect(cardService.bulkCreateFromAi).not.toHaveBeenCalled();
+    expect(create.mock.calls[0][0].messages[0].content).toContain(
+      'detailedExplanation',
+    );
+    expect(create.mock.calls[0][0].messages[0].content).toContain(
+      "learner's primary language (uk)",
+    );
+    expect(create.mock.calls[0][0].messages[0].content).toContain(
+      'language being learned',
+    );
+    expect(create.mock.calls[0][0].messages[1].content).toBe(
+      JSON.stringify({ word: 'deleted', sentence: request.sentence }),
+    );
+  });
+
+  it('rejects incomplete structured model responses', async () => {
+    const { service } = makeService([
+      {
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                ...explanation,
+                detailedExplanation: '',
+              }),
+            },
+          },
+        ],
+      },
+    ]);
+
+    await expect(service.explainWord(request)).rejects.toBeInstanceOf(
+      HttpException,
+    );
+  });
+
+  it('validates word and sentence lengths', async () => {
+    const valid = plainToInstance(ExplainWordRequestDto, request);
+    const invalid = plainToInstance(ExplainWordRequestDto, {
+      ...request,
+      word: 'x'.repeat(101),
+      sentence: ' ',
+    });
+
+    expect(await validate(valid)).toHaveLength(0);
+    expect(await validate(invalid)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ property: 'word' }),
+        expect.objectContaining({ property: 'sentence' }),
+      ]),
+    );
   });
 });
