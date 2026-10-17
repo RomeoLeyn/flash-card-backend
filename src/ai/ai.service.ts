@@ -17,6 +17,7 @@ import {
 import {
   buildListSystemInstruction,
   buildSystemInstruction,
+  buildWordExplanationInstruction,
 } from 'src/common/constants/promts';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
@@ -24,6 +25,8 @@ import { AiGenerationMode } from './ai-generation-mode.enum';
 import { AiGenerationLevel } from './ai-generation-level.enum';
 import { AiFlashCardDto } from './dto/ai-flash-card.dto';
 import { AiRequestDto } from './dto/ai-request.dto';
+import { ExplainWordRequestDto } from './dto/explain-word-request.dto';
+import { ExplainedFlashCardDto } from './dto/explained-flash-card.dto';
 
 type AiError = {
   status?: unknown;
@@ -65,6 +68,100 @@ export class AiService {
       return typeof word === 'string' ? word : null;
     }
     return null;
+  }
+
+  async explainWord(
+    request: ExplainWordRequestDto,
+  ): Promise<ExplainedFlashCardDto & { originalForm: string }> {
+    try {
+      const completion = await this.groq.chat.completions.create({
+        model: 'qwen/qwen3.8-27b',
+        temperature: 0.4,
+        response_format: { type: 'json_object' },
+        messages: [
+          {
+            role: 'system',
+            content: buildWordExplanationInstruction({
+              sourceLanguage: request.sourceLanguage,
+              targetLanguage: request.targetLanguage,
+            }),
+          },
+          {
+            role: 'user',
+            content: JSON.stringify({
+              word: request.word.trim(),
+              sentence: request.sentence.trim(),
+            }),
+          },
+        ],
+      });
+
+      const rawText = completion.choices[0]?.message?.content;
+      if (!rawText) {
+        throw new HttpException(
+          AiErrorMessages.EMPTY_RESPONSE,
+          HttpStatus.BAD_GATEWAY,
+        );
+      }
+
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(rawText);
+      } catch {
+        throw new HttpException(
+          AiErrorMessages.INVALID_JSON,
+          HttpStatus.BAD_GATEWAY,
+        );
+      }
+
+      if (
+        typeof parsed !== 'object' ||
+        parsed === null ||
+        Array.isArray(parsed)
+      ) {
+        throw new HttpException(
+          AiErrorMessages.INVALID_FORMAT,
+          HttpStatus.BAD_GATEWAY,
+        );
+      }
+
+      const card = plainToInstance(ExplainedFlashCardDto, parsed);
+      const errors = await validate(card, {
+        whitelist: true,
+        forbidNonWhitelisted: true,
+      });
+      if (
+        errors.length > 0 ||
+        card.sourceLanguage !== request.sourceLanguage ||
+        card.targetLanguage !== request.targetLanguage
+      ) {
+        throw new HttpException(
+          AiErrorMessages.INVALID_FORMAT,
+          HttpStatus.BAD_GATEWAY,
+        );
+      }
+
+      return {
+        ...card,
+        originalForm: request.word.trim(),
+      };
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
+      const aiStatus = getAiErrorStatus(error);
+      const status =
+        aiStatus && aiStatus >= 400 && aiStatus <= 599
+          ? aiStatus
+          : HttpStatus.BAD_GATEWAY;
+      const message =
+        status === AiErrorStatus.AI_SERVICE_UNAVAILABLE_STATUS
+          ? AiErrorMessages.AI_SERVICE_UNAVAILABLE_MESSAGE
+          : AiErrorMessages.AI_SERVICE_ERROR_MESSAGE;
+
+      throw new HttpException(message, status);
+    }
   }
 
   async generateResponse(

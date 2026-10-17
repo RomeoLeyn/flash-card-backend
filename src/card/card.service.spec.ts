@@ -1,3 +1,4 @@
+import { ConflictException } from '@nestjs/common';
 import { DeepPartial, Repository } from 'typeorm';
 import { AiGenerationLevel } from 'src/ai/ai-generation-level.enum';
 import { Card } from './entities/card.entity';
@@ -5,6 +6,121 @@ import { CardService } from './card.service';
 import { CategoryService } from '../category/category.service';
 
 describe('CardService', () => {
+  it('rejects a duplicate word ignoring case and surrounding whitespace', async () => {
+    const queryBuilder = {
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      getOne: jest.fn().mockResolvedValue({ id: 'existing-card' }),
+    };
+    const repository = {
+      createQueryBuilder: jest.fn().mockReturnValue(queryBuilder),
+      create: jest.fn(),
+      save: jest.fn(),
+    };
+    const categoryService = {
+      findByCategoryIdAndUserId: jest
+        .fn()
+        .mockResolvedValue({ id: 'category-id' }),
+    };
+    const service = new CardService(
+      repository as unknown as Repository<Card>,
+      categoryService as unknown as CategoryService,
+    );
+
+    await expect(
+      service.create(
+        {
+          word: '  DELETE ',
+          sourceLanguage: 'uk',
+          targetLanguage: 'en',
+          translation: 'видаляти',
+          categoryId: 'category-id',
+        },
+        'user-id',
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    expect(queryBuilder.andWhere).toHaveBeenCalledWith(
+      'LOWER(TRIM(card.word)) = LOWER(TRIM(:word))',
+      { word: '  DELETE ' },
+    );
+    expect(repository.save).not.toHaveBeenCalled();
+  });
+
+  it('creates a card when no duplicate exists', async () => {
+    const queryBuilder = {
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      getOne: jest.fn().mockResolvedValue(null),
+    };
+    const card = { id: 'new-card' };
+    const repository = {
+      createQueryBuilder: jest.fn().mockReturnValue(queryBuilder),
+      create: jest.fn().mockReturnValue(card),
+      save: jest.fn().mockResolvedValue(card),
+    };
+    const categoryService = {
+      findByCategoryIdAndUserId: jest
+        .fn()
+        .mockResolvedValue({ id: 'category-id' }),
+    };
+    const service = new CardService(
+      repository as unknown as Repository<Card>,
+      categoryService as unknown as CategoryService,
+    );
+
+    await expect(
+      service.create(
+        {
+          word: 'delete',
+          sourceLanguage: 'uk',
+          targetLanguage: 'en',
+          translation: 'видаляти',
+          categoryId: 'category-id',
+        },
+        'user-id',
+      ),
+    ).resolves.toBe(card);
+    expect(repository.save).toHaveBeenCalledWith(card);
+  });
+
+  it('converts a database unique-constraint race into a conflict response', async () => {
+    const queryBuilder = {
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      getOne: jest.fn().mockResolvedValue(null),
+    };
+    const repository = {
+      createQueryBuilder: jest.fn().mockReturnValue(queryBuilder),
+      create: jest.fn((value: DeepPartial<Card>) => value),
+      save: jest.fn().mockRejectedValue({
+        driverError: { code: '23505' },
+      }),
+    };
+    const categoryService = {
+      findByCategoryIdAndUserId: jest
+        .fn()
+        .mockResolvedValue({ id: 'category-id' }),
+    };
+    const service = new CardService(
+      repository as unknown as Repository<Card>,
+      categoryService as unknown as CategoryService,
+    );
+
+    await expect(
+      service.create(
+        {
+          word: 'delete',
+          sourceLanguage: 'uk',
+          targetLanguage: 'en',
+          translation: 'видаляти',
+          categoryId: 'category-id',
+        },
+        'user-id',
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+
   it('persists the CEFR level on AI-generated cards', async () => {
     const repository = {
       find: jest.fn().mockResolvedValue([]),

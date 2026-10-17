@@ -57,6 +57,42 @@ $ npm run test:e2e
 $ npm run test:cov
 ```
 
+## AI word explanation
+
+`POST /api/ai/explain` analyzes a selected word in a sentence and returns a
+flashcard draft plus a separate contextual explanation. It requires a JWT
+bearer token and does not create or save a card; the client should save the
+returned card only after the user confirms.
+
+```json
+{
+  "word": "deleted",
+  "sentence": "I accidentally deleted the important file.",
+  "sourceLanguage": "uk",
+  "targetLanguage": "en"
+}
+```
+
+The response contains `originalForm`, the dictionary-form `word`, the usual
+flashcard fields (`translation`, `transcription`, `explanation`, and `example`),
+and `detailedExplanation`. Languages use lowercase ISO 639-1 codes. The
+endpoint allows up to 10 requests per authenticated user per minute per
+application instance; excess requests receive `429 Too Many Requests`.
+
+```json
+{
+  "originalForm": "deleted",
+  "word": "delete",
+  "sourceLanguage": "uk",
+  "targetLanguage": "en",
+  "translation": "видаляти",
+  "transcription": "/dɪˈliːt/",
+  "explanation": "Видаляти або стирати дані, файли чи інформацію.",
+  "example": "I deleted the old files yesterday.",
+  "detailedExplanation": "Deleted — форма минулого часу дієслова delete. У цьому реченні йдеться про дію, яка вже відбулася."
+}
+```
+
 ## Deployment
 
 When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
