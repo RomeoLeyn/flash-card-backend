@@ -7,7 +7,6 @@ import {
   Param,
   Delete,
   Query,
-  NotFoundException,
   UseGuards,
 } from '@nestjs/common';
 import { CardService } from './card.service';
@@ -92,6 +91,7 @@ export class CardController {
       categoryId: query.categoryId,
       sortBy: query.sortBy,
       sortOrder: query.sortOrder,
+      limit: query.limit,
     });
   }
 
@@ -102,10 +102,7 @@ export class CardController {
     @Body() dto: ReviewCardDto,
     @CurrentUser('id') userId: string,
   ) {
-    const card = await this.cardService.findOne(id, userId);
-    if (!card) throw new NotFoundException('Card not found');
-
-    return this.reviewService.reviewCard(card, dto.quality);
+    return this.reviewService.reviewCard(id, userId, dto.quality);
   }
 
   @Get('stats')

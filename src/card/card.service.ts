@@ -11,27 +11,7 @@ import { Card } from './entities/card.entity';
 import { CategoryService } from '../category/category.service';
 import { FlashcardData } from 'src/common/interfaces/flash-card-data.interface';
 import { CardSortBy, SortOrder } from 'src/common/enums/sort-order.enum';
-
-function getDatabaseErrorCode(error: unknown): string | undefined {
-  if (
-    typeof error !== 'object' ||
-    error === null ||
-    !('driverError' in error)
-  ) {
-    return undefined;
-  }
-
-  const driverError = error.driverError;
-  if (
-    typeof driverError !== 'object' ||
-    driverError === null ||
-    !('code' in driverError)
-  ) {
-    return undefined;
-  }
-
-  return typeof driverError.code === 'string' ? driverError.code : undefined;
-}
+import { getDatabaseErrorCode } from 'src/common/utils/database-error';
 
 @Injectable()
 export class CardService {
@@ -202,8 +182,17 @@ export class CardService {
   }
 
   async remove(id: string, userId: string): Promise<void> {
-    const card = await this.findOne(id, userId);
-    await this.cardRepository.remove(card);
+    const result = await this.cardRepository
+      .createQueryBuilder()
+      .delete()
+      .from(Card)
+      .where('id = :id', { id })
+      .andWhere('"userId" = :userId', { userId })
+      .execute();
+
+    if (!result.affected) {
+      throw new NotFoundException('Card not found');
+    }
   }
 
   async bulkRemove(

@@ -8,39 +8,36 @@ import { UpdateCategoryDto } from './dto/update-category.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Category } from './entities/category.entity';
 import { Repository } from 'typeorm';
-import { UserService } from '../user/user.service';
+import { getDatabaseErrorCode } from 'src/common/utils/database-error';
 
 @Injectable()
 export class CategoryService {
   constructor(
     @InjectRepository(Category)
     private readonly categoryRepository: Repository<Category>,
-    private readonly userService: UserService,
   ) {}
 
   async create(createCategoryDto: CreateCategoryDto, userId: string) {
-    const existing = await this.categoryRepository.findOne({
-      where: { name: createCategoryDto.name, user: { id: userId } },
-    });
-
-    if (existing) {
-      throw new ConflictException('Category with this name already exists');
-    }
-
-    const user = await this.userService.findOne(userId);
-
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
     const category = this.categoryRepository.create({
       name: createCategoryDto.name,
       sourceLanguage: createCategoryDto.sourceLanguage,
       targetLanguage: createCategoryDto.targetLanguage,
-      user,
+      user: { id: userId },
     });
 
-    return this.categoryRepository.save(category);
+    try {
+      return await this.categoryRepository.save(category);
+    } catch (error) {
+      const databaseErrorCode = getDatabaseErrorCode(error);
+      if (databaseErrorCode === '23505') {
+        throw new ConflictException('Category with this name already exists');
+      }
+      if (databaseErrorCode === '23503') {
+        throw new NotFoundException('User does not exist');
+      }
+
+      throw error;
+    }
   }
 
   async findAll(userId: string) {
@@ -79,22 +76,32 @@ export class CategoryService {
     updateCategoryDto: UpdateCategoryDto,
   ) {
     const category = await this.findByCategoryIdAndUserId(id, userId);
+    Object.assign(category, updateCategoryDto);
 
-    if (!category) {
-      throw new NotFoundException('Category not found');
+    try {
+      return await this.categoryRepository.save(category);
+    } catch (error) {
+      if (getDatabaseErrorCode(error) === '23505') {
+        throw new ConflictException('Category with this name already exists');
+      }
+
+      throw error;
     }
-
-    await this.categoryRepository.update(id, updateCategoryDto);
-    return this.categoryRepository.findOne({ where: { id } });
   }
 
   async remove(id: string, userId: string) {
-    const category = await this.findByCategoryIdAndUserId(id, userId);
+    const result = await this.categoryRepository
+      .createQueryBuilder()
+      .delete()
+      .from(Category)
+      .where('id = :id', { id })
+      .andWhere('"userId" = :userId', { userId })
+      .execute();
 
-    if (!category) {
+    if (!result.affected) {
       throw new NotFoundException('Category not found');
     }
 
-    return this.categoryRepository.delete(id);
+    return result;
   }
 }
