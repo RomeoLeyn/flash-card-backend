@@ -12,6 +12,7 @@ import { User } from 'src/user/entities/user.entity';
 import { AuthResponseDto, SignInDto, SignUpDto } from './dto/auth.dto';
 import { plainToInstance } from 'class-transformer';
 import { ResponseUserDto } from 'src/user/dto/response-user.dto';
+import { getDatabaseErrorCode } from 'src/common/utils/database-error';
 
 @Injectable()
 export class AuthService {
@@ -24,14 +25,6 @@ export class AuthService {
   async signUp(signUpDto: SignUpDto): Promise<AuthResponseDto> {
     const { email, password } = signUpDto;
 
-    const existingUser = await this.userRepository.findOne({
-      where: { email },
-    });
-
-    if (existingUser) {
-      throw new ConflictException('User with this email already exists');
-    }
-
     const passwordHash = await bcrypt.hash(password, 10);
 
     const user = this.userRepository.create({
@@ -39,7 +32,16 @@ export class AuthService {
       passwordHash,
     });
 
-    const savedUser = await this.userRepository.save(user);
+    let savedUser: User;
+    try {
+      savedUser = await this.userRepository.save(user);
+    } catch (error) {
+      if (getDatabaseErrorCode(error) === '23505') {
+        throw new ConflictException('User with this email already exists');
+      }
+
+      throw error;
+    }
 
     const accessToken = this.generateAccessToken(savedUser);
 
@@ -99,6 +101,7 @@ export class AuthService {
   async getProfile(userId: string): Promise<User> {
     const user = await this.userRepository.findOne({
       where: { id: userId },
+      select: { id: true, email: true, createdAt: true },
     });
 
     if (!user) {

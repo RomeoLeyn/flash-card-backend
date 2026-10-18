@@ -1,4 +1,4 @@
-import { ConflictException } from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { DeepPartial, Repository } from 'typeorm';
 import { AiGenerationLevel } from 'src/ai/ai-generation-level.enum';
 import { Card } from './entities/card.entity';
@@ -182,6 +182,56 @@ describe('CardService', () => {
     expect(queryBuilder.andWhere).toHaveBeenCalledWith('"userId" = :userId', {
       userId: 'user-id',
     });
+  });
+
+  it('deletes a card for the current user without loading it first', async () => {
+    const queryBuilder = {
+      delete: jest.fn().mockReturnThis(),
+      from: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      execute: jest.fn().mockResolvedValue({ affected: 1 }),
+    };
+    const repository = {
+      createQueryBuilder: jest.fn().mockReturnValue(queryBuilder),
+      findOne: jest.fn(),
+      remove: jest.fn(),
+    };
+    const service = new CardService(
+      repository as unknown as Repository<Card>,
+      {} as CategoryService,
+    );
+
+    await expect(service.remove('card-id', 'user-id')).resolves.toBeUndefined();
+    expect(queryBuilder.where).toHaveBeenCalledWith('id = :id', {
+      id: 'card-id',
+    });
+    expect(queryBuilder.andWhere).toHaveBeenCalledWith('"userId" = :userId', {
+      userId: 'user-id',
+    });
+    expect(repository.findOne).not.toHaveBeenCalled();
+    expect(repository.remove).not.toHaveBeenCalled();
+  });
+
+  it('returns not found when the card is missing or belongs to another user', async () => {
+    const queryBuilder = {
+      delete: jest.fn().mockReturnThis(),
+      from: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      execute: jest.fn().mockResolvedValue({ affected: 0 }),
+    };
+    const repository = {
+      createQueryBuilder: jest.fn().mockReturnValue(queryBuilder),
+    };
+    const service = new CardService(
+      repository as unknown as Repository<Card>,
+      {} as CategoryService,
+    );
+
+    await expect(service.remove('card-id', 'user-id')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
   });
 
   it('propagates database errors', async () => {

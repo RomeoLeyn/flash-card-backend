@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ReviewLog } from './entities/review.entity';
@@ -72,8 +72,11 @@ export class ReviewService {
     return { interval, repetitions, easeFactor, nextReviewDate, isLeech };
   }
 
-  private async getConsecutiveBadCount(cardId: string): Promise<number> {
-    const recentLogs = await this.reviewLogRepo.find({
+  private async getConsecutiveBadCount(
+    cardId: string,
+    reviewLogRepo: Repository<ReviewLog> = this.reviewLogRepo,
+  ): Promise<number> {
+    const recentLogs = await reviewLogRepo.find({
       where: { card: { id: cardId } },
       order: { reviewedAt: 'DESC' },
       take: LEECH_THRESHOLD,
@@ -87,32 +90,57 @@ export class ReviewService {
     return count;
   }
 
-  async reviewCard(card: Card, quality: ReviewQuality): Promise<Card> {
-    const consecutiveBadCount = await this.getConsecutiveBadCount(card.id);
+  async reviewCard(
+    cardId: string,
+    userId: string,
+    quality: ReviewQuality,
+  ): Promise<Card> {
+    return this.cardRepo.manager.transaction(async (manager) => {
+      const cardRepository = manager.getRepository(Card);
+      const reviewLogRepository = manager.getRepository(ReviewLog);
+      const currentCard = await cardRepository
+        .createQueryBuilder('card')
+        .leftJoinAndSelect('card.category', 'category')
+        .where('card.id = :cardId AND card.userId = :userId', {
+          cardId,
+          userId,
+        })
+        .setLock('pessimistic_write', undefined, ['card'])
+        .getOne();
 
-    const { interval, repetitions, easeFactor, nextReviewDate, isLeech } =
-      this.calculateSrsUpdate(card, quality, consecutiveBadCount);
+      if (!currentCard) {
+        throw new NotFoundException('Card not found');
+      }
 
-    await this.reviewLogRepo.save(
-      this.reviewLogRepo.create({
-        card,
-        quality,
-        intervalBefore: card.interval,
-        intervalAfter: interval,
-        easeFactorBefore: card.easeFactor,
-        easeFactorAfter: easeFactor,
-        repetitionsAfter: repetitions,
-      }),
-    );
+      const consecutiveBadCount = await this.getConsecutiveBadCount(
+        currentCard.id,
+        reviewLogRepository,
+      );
 
-    card.interval = interval;
-    card.repetitions = repetitions;
-    card.easeFactor = easeFactor;
-    card.nextReviewDate = nextReviewDate;
-    card.lastReviewedAt = new Date();
-    card.isLeech = isLeech;
+      const { interval, repetitions, easeFactor, nextReviewDate, isLeech } =
+        this.calculateSrsUpdate(currentCard, quality, consecutiveBadCount);
 
-    return this.cardRepo.save(card);
+      await reviewLogRepository.save(
+        reviewLogRepository.create({
+          card: currentCard,
+          quality,
+          intervalBefore: currentCard.interval,
+          intervalAfter: interval,
+          easeFactorBefore: currentCard.easeFactor,
+          easeFactorAfter: easeFactor,
+          repetitionsAfter: repetitions,
+        }),
+      );
+
+      currentCard.interval = interval;
+      currentCard.repetitions = repetitions;
+      currentCard.easeFactor = easeFactor;
+      currentCard.nextReviewDate = nextReviewDate;
+      currentCard.lastReviewedAt = new Date();
+      currentCard.isLeech = isLeech;
+
+      return cardRepository.save(currentCard);
+    });
   }
 
   async getDueCards(
@@ -121,6 +149,7 @@ export class ReviewService {
       categoryId?: string;
       sortBy?: CardSortBy;
       sortOrder?: SortOrder;
+      limit?: number;
     },
   ): Promise<Card[]> {
     const sortBy = options.sortBy || CardSortBy.NEXT_REVIEW_DATE;
@@ -140,6 +169,10 @@ export class ReviewService {
       });
     }
 
+    if (options.limit) {
+      qb.take(options.limit);
+    }
+
     if (sortBy === CardSortBy.LAST_REVIEWED_AT) {
       qb.orderBy(`card.${sortBy}`, sortOrder, 'NULLS LAST');
     } else {
@@ -150,25 +183,34 @@ export class ReviewService {
   }
 
   async getStats(userId: string) {
-    const [dueCount, leechCount, totalCards] = await Promise.all([
+    const [cardStats, reviewedToday] = await Promise.all([
       this.cardRepo
         .createQueryBuilder('card')
-        .where('card.userId = :userId', { userId })
-        .andWhere(
-          '(card.nextReviewDate IS NULL OR card.nextReviewDate <= NOW())',
+        .select(
+          'COUNT(*) FILTER (WHERE card.nextReviewDate IS NULL OR card.nextReviewDate <= NOW())',
+          'dueCount',
         )
+        .addSelect('COUNT(*) FILTER (WHERE card.isLeech = true)', 'leechCount')
+        .addSelect('COUNT(*)', 'totalCards')
+        .where('card.userId = :userId', { userId })
+        .getRawOne<{
+          dueCount: string;
+          leechCount: string;
+          totalCards: string;
+        }>(),
+      this.reviewLogRepo
+        .createQueryBuilder('log')
+        .innerJoin('log.card', 'card')
+        .where('card.userId = :userId', { userId })
+        .andWhere("log.reviewedAt >= NOW() - INTERVAL '24 hours'")
         .getCount(),
-      this.cardRepo.count({ where: { user: { id: userId }, isLeech: true } }),
-      this.cardRepo.count({ where: { user: { id: userId } } }),
     ]);
 
-    const reviewedToday = await this.reviewLogRepo
-      .createQueryBuilder('log')
-      .innerJoin('log.card', 'card')
-      .where('card.userId = :userId', { userId })
-      .andWhere("log.reviewedAt >= NOW() - INTERVAL '24 hours'")
-      .getCount();
-
-    return { dueCount, leechCount, totalCards, reviewedToday };
+    return {
+      dueCount: Number(cardStats?.dueCount ?? 0),
+      leechCount: Number(cardStats?.leechCount ?? 0),
+      totalCards: Number(cardStats?.totalCards ?? 0),
+      reviewedToday,
+    };
   }
 }

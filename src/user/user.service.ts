@@ -21,7 +21,7 @@ export class UserService {
   async create(createUserDto: CreateUserDto) {
     const user = this.userRepository.create({
       email: createUserDto.email,
-      passwordHash: bcrypt.hashSync(createUserDto.password, 8),
+      passwordHash: await bcrypt.hash(createUserDto.password, 8),
     });
 
     const savedUser = await this.userRepository.save(user);
@@ -61,7 +61,13 @@ export class UserService {
       throw new UnauthorizedException('Current password is incorrect');
     }
 
-    user.passwordHash = await bcrypt.hash(changePasswordDto.newPassword, 10);
-    await this.userRepository.save(user);
+    const passwordHash = await bcrypt.hash(changePasswordDto.newPassword, 10);
+    const result = await this.userRepository.update(
+      { id, passwordHash: user.passwordHash },
+      { passwordHash },
+    );
+    if (!result.affected) {
+      throw new UnauthorizedException('Current password is incorrect');
+    }
   }
 }
