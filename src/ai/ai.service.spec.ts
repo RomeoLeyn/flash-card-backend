@@ -177,16 +177,22 @@ describe('AiService generation counts and retries', () => {
       'Preserve the original word or phrase',
     );
     expect(messages[0].content).toContain(
-      'word, transcription, and example: source language (en)',
+      'word, transcription, and example: target language (uk)',
     );
     expect(messages[0].content).toContain(
-      'translation and explanation: target language (uk)',
+      'translation and explanation: source language (en)',
     );
     expect(messages[0].content).toContain(
-      'translation: a short, natural translation in uk',
+      'Never default to English. Follow these language codes even when the supplied words are English',
     );
     expect(messages[0].content).toContain(
-      'example: one natural sentence in en',
+      'translation: a short, natural translation in en',
+    );
+    expect(messages[0].content).toContain(
+      'explanation: a brief explanation in en',
+    );
+    expect(messages[0].content).toContain(
+      'example: one natural sentence in uk',
     );
     expect(messages[0].content).not.toContain('Відповідність категорії');
   });
