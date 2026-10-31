@@ -5,23 +5,32 @@ import { ReviewLog } from './entities/review.entity';
 import { Card } from 'src/card/entities/card.entity';
 import { ReviewQuality } from 'src/common/enums/rewiev-quality.enum';
 import { CardSortBy, SortOrder } from 'src/common/enums/sort-order.enum';
+import {
+  Card as FsrsCard,
+  createEmptyCard,
+  fsrs,
+  Grade,
+  Rating,
+  State,
+  TypeConvert,
+} from 'ts-fsrs';
 
 export interface SrsUpdateResult {
   interval: number;
   repetitions: number;
-  easeFactor: number;
   nextReviewDate: Date;
   isLeech: boolean;
+  fsrsCard: FsrsCard;
+  stability: number;
+  difficulty: number;
+  status: State;
+  elapsedDays: number;
+  learningSteps: number;
+  lapses: number;
 }
 
-const MIN_EASE_FACTOR = 1.3;
 const LEECH_THRESHOLD = 5;
-
-const EASE_DELTA: Record<ReviewQuality, number> = {
-  [ReviewQuality.BAD]: -0.3,
-  [ReviewQuality.GOOD]: 0,
-  [ReviewQuality.PERFECT]: 0.15,
-};
+const scheduler = fsrs({ enable_fuzz: false });
 
 @Injectable()
 export class ReviewService {
@@ -33,49 +42,104 @@ export class ReviewService {
   ) {}
 
   calculateSrsUpdate(
-    card: Pick<Card, 'interval' | 'repetitions' | 'easeFactor'>,
+    card: Pick<
+      Card,
+      | 'interval'
+      | 'repetitions'
+      | 'nextReviewDate'
+      | 'fsrsStability'
+      | 'fsrsDifficulty'
+      | 'fsrsStatus'
+      | 'fsrsElapsedDays'
+      | 'fsrsLearningSteps'
+      | 'fsrsLapses'
+    >,
     quality: ReviewQuality,
-    consecutiveBadCount: number,
+    consecutiveAgainCount: number,
+    lastReviewedAt: Date | null,
+    now = new Date(),
   ): SrsUpdateResult {
-    let { interval, repetitions, easeFactor } = card;
-
-    if (quality === ReviewQuality.BAD) {
-      repetitions = 0;
-      interval = 1;
-    } else {
-      repetitions += 1;
-
-      if (repetitions === 1) {
-        interval = 1;
-      } else if (repetitions === 2) {
-        interval = quality === ReviewQuality.PERFECT ? 6 : 3;
-      } else {
-        interval = Math.round(interval * easeFactor);
-      }
-    }
-
-    easeFactor = Math.max(MIN_EASE_FACTOR, easeFactor + EASE_DELTA[quality]);
-
-    if (interval > 6) {
-      const fuzzRange = interval * 0.08;
-      const fuzz = Math.round((Math.random() * 2 - 1) * fuzzRange);
-      interval = Math.max(1, interval + fuzz);
-    }
-
-    const nextReviewDate = new Date();
-    nextReviewDate.setDate(nextReviewDate.getDate() + interval);
+    const fsrsCard = this.getFsrsCard(card, lastReviewedAt, now);
+    const result = scheduler.next(fsrsCard, now, this.toFsrsGrade(quality));
+    const interval = result.card.scheduled_days;
+    const repetitions = result.card.reps;
 
     const isLeech =
-      quality === ReviewQuality.BAD &&
-      consecutiveBadCount + 1 >= LEECH_THRESHOLD;
+      this.isAgainQuality(quality) &&
+      consecutiveAgainCount + 1 >= LEECH_THRESHOLD;
 
-    return { interval, repetitions, easeFactor, nextReviewDate, isLeech };
+    return {
+      interval,
+      repetitions,
+      nextReviewDate: result.card.due,
+      isLeech,
+      fsrsCard: result.card,
+      stability: result.card.stability,
+      difficulty: result.card.difficulty,
+      status: result.card.state,
+      elapsedDays: result.card.elapsed_days,
+      learningSteps: result.card.learning_steps,
+      lapses: result.card.lapses,
+    };
   }
 
-  private async getConsecutiveBadCount(
+  private toFsrsGrade(quality: ReviewQuality): Grade {
+    switch (quality) {
+      case ReviewQuality.AGAIN:
+      case ReviewQuality.BAD:
+        return Rating.Again;
+      case ReviewQuality.HARD:
+        return Rating.Hard;
+      case ReviewQuality.GOOD:
+        return Rating.Good;
+      case ReviewQuality.EASY:
+      case ReviewQuality.PERFECT:
+        return Rating.Easy;
+    }
+  }
+
+  private isAgainQuality(quality: ReviewQuality): boolean {
+    return quality === ReviewQuality.AGAIN || quality === ReviewQuality.BAD;
+  }
+
+  private getFsrsCard(
+    card: Pick<
+      Card,
+      | 'interval'
+      | 'repetitions'
+      | 'nextReviewDate'
+      | 'fsrsStability'
+      | 'fsrsDifficulty'
+      | 'fsrsStatus'
+      | 'fsrsElapsedDays'
+      | 'fsrsLearningSteps'
+      | 'fsrsLapses'
+    >,
+    lastReviewedAt: Date | null,
+    now: Date,
+  ): FsrsCard {
+    if (card.fsrsStability === null || card.fsrsStability === undefined) {
+      return createEmptyCard(now);
+    }
+
+    return TypeConvert.card({
+      due: card.nextReviewDate ?? now,
+      stability: card.fsrsStability,
+      difficulty: card.fsrsDifficulty ?? 5,
+      elapsed_days: card.fsrsElapsedDays ?? 0,
+      scheduled_days: card.interval,
+      learning_steps: card.fsrsLearningSteps ?? 0,
+      reps: card.repetitions,
+      lapses: card.fsrsLapses ?? 0,
+      state: card.fsrsStatus ?? State.New,
+      last_review: lastReviewedAt,
+    });
+  }
+
+  private async getRecentReviewState(
     cardId: string,
     reviewLogRepo: Repository<ReviewLog> = this.reviewLogRepo,
-  ): Promise<number> {
+  ): Promise<{ consecutiveAgainCount: number; lastReviewedAt: Date | null }> {
     const recentLogs = await reviewLogRepo.find({
       where: { card: { id: cardId } },
       order: { reviewedAt: 'DESC' },
@@ -84,10 +148,19 @@ export class ReviewService {
 
     let count = 0;
     for (const log of recentLogs) {
-      if (log.quality === ReviewQuality.BAD) count++;
-      else break;
+      if (
+        log.quality === ReviewQuality.BAD ||
+        log.quality === ReviewQuality.AGAIN
+      ) {
+        count++;
+      } else {
+        break;
+      }
     }
-    return count;
+    return {
+      consecutiveAgainCount: count,
+      lastReviewedAt: recentLogs[0]?.reviewedAt ?? null,
+    };
   }
 
   async reviewCard(
@@ -101,6 +174,12 @@ export class ReviewService {
       const currentCard = await cardRepository
         .createQueryBuilder('card')
         .leftJoinAndSelect('card.category', 'category')
+        .addSelect('card.fsrsStability')
+        .addSelect('card.fsrsDifficulty')
+        .addSelect('card.fsrsStatus')
+        .addSelect('card.fsrsElapsedDays')
+        .addSelect('card.fsrsLearningSteps')
+        .addSelect('card.fsrsLapses')
         .where('card.id = :cardId AND card.userId = :userId', {
           cardId,
           userId,
@@ -112,32 +191,40 @@ export class ReviewService {
         throw new NotFoundException('Card not found');
       }
 
-      const consecutiveBadCount = await this.getConsecutiveBadCount(
-        currentCard.id,
-        reviewLogRepository,
-      );
+      const { consecutiveAgainCount, lastReviewedAt } =
+        await this.getRecentReviewState(currentCard.id, reviewLogRepository);
+      const now = new Date();
 
-      const { interval, repetitions, easeFactor, nextReviewDate, isLeech } =
-        this.calculateSrsUpdate(currentCard, quality, consecutiveBadCount);
+      const result = this.calculateSrsUpdate(
+        currentCard,
+        quality,
+        consecutiveAgainCount,
+        currentCard.fsrsStability === null ? null : lastReviewedAt,
+        now,
+      );
 
       await reviewLogRepository.save(
         reviewLogRepository.create({
           card: currentCard,
           quality,
           intervalBefore: currentCard.interval,
-          intervalAfter: interval,
-          easeFactorBefore: currentCard.easeFactor,
-          easeFactorAfter: easeFactor,
-          repetitionsAfter: repetitions,
+          intervalAfter: result.interval,
+          easeFactorBefore: null,
+          easeFactorAfter: null,
+          repetitionsAfter: result.repetitions,
         }),
       );
 
-      currentCard.interval = interval;
-      currentCard.repetitions = repetitions;
-      currentCard.easeFactor = easeFactor;
-      currentCard.nextReviewDate = nextReviewDate;
-      currentCard.lastReviewedAt = new Date();
-      currentCard.isLeech = isLeech;
+      currentCard.interval = result.interval;
+      currentCard.repetitions = result.repetitions;
+      currentCard.fsrsStability = result.stability;
+      currentCard.fsrsDifficulty = result.difficulty;
+      currentCard.fsrsStatus = result.status;
+      currentCard.fsrsElapsedDays = result.elapsedDays;
+      currentCard.fsrsLearningSteps = result.learningSteps;
+      currentCard.fsrsLapses = result.lapses;
+      currentCard.nextReviewDate = result.nextReviewDate;
+      currentCard.isLeech = result.isLeech;
 
       return cardRepository.save(currentCard);
     });
@@ -160,7 +247,7 @@ export class ReviewService {
       .leftJoinAndSelect('card.category', 'category')
       .where('card.userId = :userId', { userId })
       .andWhere(
-        '(card.nextReviewDate IS NULL OR card.nextReviewDate <= NOW())',
+        '(card.fsrsStability IS NULL OR card.nextReviewDate IS NULL OR card.nextReviewDate <= NOW())',
       );
 
     if (options.categoryId) {
@@ -174,7 +261,11 @@ export class ReviewService {
     }
 
     if (sortBy === CardSortBy.LAST_REVIEWED_AT) {
-      qb.orderBy(`card.${sortBy}`, sortOrder, 'NULLS LAST');
+      qb.orderBy(
+        '(SELECT MAX("reviewLog"."reviewedAt") FROM "review_log" "reviewLog" WHERE "reviewLog"."cardId" = "card"."id")',
+        sortOrder,
+        'NULLS LAST',
+      );
     } else {
       qb.orderBy(`card.${sortBy}`, sortOrder, 'NULLS FIRST');
     }
@@ -187,7 +278,7 @@ export class ReviewService {
       this.cardRepo
         .createQueryBuilder('card')
         .select(
-          'COUNT(*) FILTER (WHERE card.nextReviewDate IS NULL OR card.nextReviewDate <= NOW())',
+          'COUNT(*) FILTER (WHERE card.fsrsStability IS NULL OR card.nextReviewDate IS NULL OR card.nextReviewDate <= NOW())',
           'dueCount',
         )
         .addSelect('COUNT(*) FILTER (WHERE card.isLeech = true)', 'leechCount')

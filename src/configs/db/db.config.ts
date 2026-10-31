@@ -20,12 +20,11 @@ export const getDbConfig = (
     entities: [dbEntityPattern],
     migrations: [dbMigrationPattern],
     autoLoadEntities: false,
-    synchronize: true,
-    migrationsRun: false,
+    synchronize: false,
+    migrationsRun: true,
     logging: process.env.NODE_ENV !== 'production',
   };
 };
 
-export const dbConfig = async (
-  configService: ConfigService,
-): Promise<TypeOrmModuleOptions> => getDbConfig(configService);
+export const dbConfig = (configService: ConfigService): TypeOrmModuleOptions =>
+  getDbConfig(configService);

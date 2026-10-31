@@ -156,10 +156,13 @@ export class CardService {
       .where('card.categoryId = :categoryId', { categoryId })
       .andWhere('card.userId = :userId', { userId });
 
-    if (
-      sortBy === CardSortBy.LAST_REVIEWED_AT ||
-      sortBy === CardSortBy.NEXT_REVIEW_DATE
-    ) {
+    if (sortBy === CardSortBy.LAST_REVIEWED_AT) {
+      qb.orderBy(
+        '(SELECT MAX("reviewLog"."reviewedAt") FROM "review_log" "reviewLog" WHERE "reviewLog"."cardId" = "card"."id")',
+        sortOrder,
+        'NULLS LAST',
+      );
+    } else if (sortBy === CardSortBy.NEXT_REVIEW_DATE) {
       qb.orderBy(`card.${sortBy}`, sortOrder, 'NULLS LAST');
     } else {
       qb.orderBy(`card.${sortBy}`, sortOrder);

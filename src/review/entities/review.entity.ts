@@ -27,11 +27,11 @@ export class ReviewLog {
   @Column()
   intervalAfter!: number;
 
-  @Column({ type: 'float' })
-  easeFactorBefore!: number;
+  @Column({ type: 'float', nullable: true })
+  easeFactorBefore!: number | null;
 
-  @Column({ type: 'float' })
-  easeFactorAfter!: number;
+  @Column({ type: 'float', nullable: true })
+  easeFactorAfter!: number | null;
 
   @Column()
   repetitionsAfter!: number;
