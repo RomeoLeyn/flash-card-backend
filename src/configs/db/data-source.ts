@@ -14,7 +14,7 @@ export const AppDataSource = new DataSource({
   url: dbUrl,
   entities: [__dirname + '/../../**/*.entity{.ts,.js}'],
   migrations: [__dirname + '/../../migrations/*{.ts,.js}'],
-  synchronize: true,
-  migrationsRun: false,
+  synchronize: false,
+  migrationsRun: true,
   logging: process.env.NODE_ENV !== 'production',
 });

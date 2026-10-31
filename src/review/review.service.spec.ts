@@ -1,10 +1,144 @@
 import { EntityManager, Repository } from 'typeorm';
+import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
 import { Card } from 'src/card/entities/card.entity';
 import { ReviewQuality } from 'src/common/enums/rewiev-quality.enum';
+import { ReviewCardDto } from 'src/card/dto/review-card.dto';
+import { createEmptyCard, fsrs, Grade, Rating } from 'ts-fsrs';
 import { ReviewLog } from './entities/review.entity';
 import { ReviewService } from './review.service';
 
 describe('ReviewService', () => {
+  describe('review rating validation', () => {
+    it.each(Object.values(ReviewQuality))(
+      'accepts the %s rating',
+      async (quality) => {
+        const dto = plainToInstance(ReviewCardDto, { quality });
+
+        await expect(validate(dto)).resolves.toHaveLength(0);
+      },
+    );
+  });
+
+  describe('calculateSrsUpdate', () => {
+    const ratings: [ReviewQuality, Grade][] = [
+      [ReviewQuality.AGAIN, Rating.Again],
+      [ReviewQuality.HARD, Rating.Hard],
+      [ReviewQuality.GOOD, Rating.Good],
+      [ReviewQuality.EASY, Rating.Easy],
+      [ReviewQuality.BAD, Rating.Again],
+      [ReviewQuality.PERFECT, Rating.Easy],
+    ];
+
+    it.each(ratings)('uses the FSRS grade for %s', (quality, rating) => {
+      const service = new ReviewService(
+        {} as Repository<ReviewLog>,
+        {} as Repository<Card>,
+      );
+      const now = new Date('2026-10-29T12:00:00.000Z');
+      const card = {
+        interval: 0,
+        repetitions: 0,
+        nextReviewDate: null,
+        fsrsStability: null,
+        fsrsDifficulty: null,
+        fsrsStatus: null,
+        fsrsElapsedDays: null,
+        fsrsLearningSteps: null,
+        fsrsLapses: null,
+      };
+      const result = service.calculateSrsUpdate(card, quality, 0, null, now);
+      const expected = fsrs({ enable_fuzz: false }).next(
+        createEmptyCard(now),
+        now,
+        rating,
+      ).card;
+
+      expect(result.fsrsCard).toEqual(expected);
+      expect(result.nextReviewDate).toEqual(expected.due);
+      expect(result.interval).toBe(expected.scheduled_days);
+      expect(result.repetitions).toBe(expected.reps);
+    });
+
+    it('starts fresh instead of importing the legacy schedule', () => {
+      const service = new ReviewService(
+        {} as Repository<ReviewLog>,
+        {} as Repository<Card>,
+      );
+      const now = new Date('2026-10-29T12:00:00.000Z');
+      const card = {
+        interval: 42,
+        repetitions: 12,
+        nextReviewDate: new Date('2026-11-01T12:00:00.000Z'),
+        fsrsStability: null,
+        fsrsDifficulty: null,
+        fsrsStatus: null,
+        fsrsElapsedDays: null,
+        fsrsLearningSteps: null,
+        fsrsLapses: null,
+      };
+
+      const result = service.calculateSrsUpdate(
+        card,
+        ReviewQuality.GOOD,
+        0,
+        null,
+        now,
+      );
+      const expected = fsrs({ enable_fuzz: false }).next(
+        createEmptyCard(now),
+        now,
+        Rating.Good,
+      ).card;
+
+      expect(result.fsrsCard).toEqual(expected);
+    });
+
+    it('reconstructs the FSRS card from normalized columns', () => {
+      const service = new ReviewService(
+        {} as Repository<ReviewLog>,
+        {} as Repository<Card>,
+      );
+      const reviewedAt = new Date('2026-10-28T12:00:00.000Z');
+      const due = new Date('2026-10-29T12:00:00.000Z');
+      const now = new Date('2026-10-29T13:00:00.000Z');
+      const previousState = fsrs({ enable_fuzz: false }).next(
+        createEmptyCard(reviewedAt),
+        reviewedAt,
+        Rating.Good,
+      ).card;
+      const card = {
+        interval: previousState.scheduled_days,
+        repetitions: previousState.reps,
+        nextReviewDate: due,
+        fsrsStability: previousState.stability,
+        fsrsDifficulty: previousState.difficulty,
+        fsrsStatus: previousState.state,
+        fsrsElapsedDays: previousState.elapsed_days,
+        fsrsLearningSteps: previousState.learning_steps,
+        fsrsLapses: previousState.lapses,
+      };
+
+      const result = service.calculateSrsUpdate(
+        card,
+        ReviewQuality.HARD,
+        0,
+        previousState.last_review ?? reviewedAt,
+        now,
+      );
+      const expected = fsrs({ enable_fuzz: false }).next(
+        {
+          ...previousState,
+          due,
+        },
+        now,
+        Rating.Hard,
+      ).card;
+
+      expect(result.fsrsCard).toEqual(expected);
+    });
+  });
+
   describe('getDueCards', () => {
     it('applies the requested category and card limit in the query', async () => {
       const queryBuilder = {
@@ -33,6 +167,9 @@ describe('ReviewService', () => {
       expect(queryBuilder.andWhere).toHaveBeenCalledWith(
         'card.categoryId = :categoryId',
         { categoryId: 'category-id' },
+      );
+      expect(queryBuilder.andWhere).toHaveBeenCalledWith(
+        '(card.fsrsStability IS NULL OR card.nextReviewDate IS NULL OR card.nextReviewDate <= NOW())',
       );
       expect(queryBuilder.take).toHaveBeenCalledWith(16);
     });
@@ -86,11 +223,18 @@ describe('ReviewService', () => {
         id: 'card-id',
         interval: 0,
         repetitions: 0,
-        easeFactor: 2.5,
         isLeech: false,
+        nextReviewDate: null,
+        fsrsStability: null,
+        fsrsDifficulty: null,
+        fsrsStatus: null,
+        fsrsElapsedDays: null,
+        fsrsLearningSteps: null,
+        fsrsLapses: null,
       } as Card;
       const cardQueryBuilder = {
         leftJoinAndSelect: jest.fn().mockReturnThis(),
+        addSelect: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
         setLock: jest.fn().mockReturnThis(),
         getOne: jest.fn().mockResolvedValue(card),

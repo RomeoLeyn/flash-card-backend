@@ -1,6 +1,7 @@
 import { Category } from 'src/category/entities/category.entity';
 import { User } from 'src/user/entities/user.entity';
 import { AiGenerationLevel } from 'src/ai/ai-generation-level.enum';
+import { State as FsrsState } from 'ts-fsrs';
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -57,20 +58,32 @@ export class Card {
   level!: AiGenerationLevel | null;
 
   // --- SRS поля ---
-  @Column({ type: 'float', default: 2.5 })
-  easeFactor!: number;
-
   @Column({ default: 0 })
   repetitions!: number;
 
   @Column({ default: 0 })
   interval!: number;
 
-  @Column({ type: 'timestamptz', nullable: true })
+  @Column({ name: 'fsrsDue', type: 'timestamptz', nullable: true })
   nextReviewDate!: Date | null;
 
-  @Column({ type: 'timestamptz', nullable: true })
-  lastReviewedAt!: Date | null;
+  @Column({ type: 'double precision', nullable: true, select: false })
+  fsrsStability!: number | null;
+
+  @Column({ type: 'double precision', nullable: true, select: false })
+  fsrsDifficulty!: number | null;
+
+  @Column({ type: 'smallint', nullable: true, select: false })
+  fsrsStatus!: FsrsState | null;
+
+  @Column({ type: 'integer', nullable: true, select: false })
+  fsrsElapsedDays!: number | null;
+
+  @Column({ type: 'integer', nullable: true, select: false })
+  fsrsLearningSteps!: number | null;
+
+  @Column({ type: 'integer', nullable: true, select: false })
+  fsrsLapses!: number | null;
 
   @Column({ default: false })
   isLeech!: boolean;
